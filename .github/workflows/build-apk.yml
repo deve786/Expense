@@ -19,7 +19,7 @@ jobs:
           java-version: 17
 
       - name: Unzip project
-        run: unzip -q spendly-expo-app.zip
+        run: unzip -q spendly-expo-app*.zip
 
       - name: Install dependencies
         run: cd expense-tracker && npm install
