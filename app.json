@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Spendly",
-    "slug": "spendly",
+    "slug": "split",
     "scheme": "spendly",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,16 +11,16 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/YOUR_EAS_PROJECT_ID",
+      "url": "https://u.expo.dev/e8e8dedb-51a8-46e9-94ec-1aef3e416242",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourname.spendly"
+      "bundleIdentifier": "com.ijasahmed.spendly"
     },
     "android": {
-      "package": "com.yourname.spendly",
+      "package": "com.ijasahmed.spendly",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -36,7 +36,11 @@
     ],
     "extra": {
       "chatProxyUrl": "",
-      "chatAppToken": ""
-    }
+      "chatAppToken": "",
+      "eas": {
+        "projectId": "e8e8dedb-51a8-46e9-94ec-1aef3e416242"
+      }
+    },
+    "owner": "ijasahmed"
   }
 }
