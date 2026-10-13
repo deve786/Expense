@@ -22,7 +22,7 @@ jobs:
         run: unzip -q spendly-expo-app*.zip
 
       - name: Install dependencies
-        run: cd expense-tracker && npm install
+        run: cd expense-tracker && npm install --legacy-peer-deps
 
       - name: Generate Android project
         run: cd expense-tracker && npx expo prebuild --platform android --no-install
