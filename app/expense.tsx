@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { METHODS, deleteExpense, getExpense, listCategories, saveExpense, type Category } from '@/db';
+import { METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, saveExpense, type Category } from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
 import { useTheme } from '@/theme';
 import { Button, Chip, Field, Row, T } from '@/ui';
@@ -22,6 +22,7 @@ export default function ExpenseForm() {
   const [note, setNote] = useState('');
   const [method, setMethod] = useState<string>('UPI');
   const [showPicker, setShowPicker] = useState(false);
+  const [customCat, setCustomCat] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -43,11 +44,14 @@ export default function ExpenseForm() {
   }, [editId]);
 
   const value = parseFloat(amount.replace(/,/g, ''));
+  const isOther = cats.find((k) => k.id === catId)?.name === 'Other';
   const valid = !isNaN(value) && value > 0 && catId !== null;
 
   async function onSave() {
     if (!valid || catId === null) return;
-    await saveExpense({ id: editId, amount: Math.round(value * 100) / 100, category_id: catId, date, note: note.trim(), method });
+    const custom = isOther ? customCat.trim() : '';
+    const finalCatId = custom ? await findOrCreateCategory(custom) : catId;
+    await saveExpense({ id: editId, amount: Math.round(value * 100) / 100, category_id: finalCatId, date, note: note.trim(), method });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     router.back();
   }
@@ -89,6 +93,17 @@ export default function ExpenseForm() {
             <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => setCatId(k.id)} />
           ))}
         </View>
+
+        {isOther && (
+          <Field
+            label="New category name (optional)"
+            value={customCat}
+            onChangeText={setCustomCat}
+            placeholder="e.g. Gifts"
+            maxLength={30}
+            style={{ marginTop: 10 }}
+          />
+        )}
 
         <T size={12} sub style={{ marginTop: 10, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>Date</T>
         <Pressable

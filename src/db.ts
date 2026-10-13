@@ -118,6 +118,20 @@ export async function addCategory(name: string, icon: string, color: string) {
   const db = await getDb();
   await db.runAsync('INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)', name.trim(), icon, color);
 }
+const NEW_CATEGORY_COLORS = ['#E4572E', '#2E86AB', '#A23B72', '#F18F01', '#3BB273', '#7768AE', '#5C6B73', '#17BEBB'];
+
+/** Return the id of the category with this name (case-insensitive), creating it if it doesn't exist. */
+export async function findOrCreateCategory(name: string) {
+  const db = await getDb();
+  const n = name.trim();
+  const existing = await db.getFirstAsync<{ id: number }>('SELECT id FROM categories WHERE LOWER(name) = LOWER(?)', n);
+  if (existing) return existing.id;
+  const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM categories');
+  const color = NEW_CATEGORY_COLORS[(count?.c ?? 0) % NEW_CATEGORY_COLORS.length];
+  const res = await db.runAsync('INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)', n, 'pricetag-outline', color);
+  return res.lastInsertRowId;
+}
+
 export async function deleteCategory(id: number) {
   const db = await getDb();
   const other = await db.getFirstAsync<{ id: number }>("SELECT id FROM categories WHERE name = 'Other'");
