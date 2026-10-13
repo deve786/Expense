@@ -32,13 +32,13 @@ const ThemeCtx = createContext<Ctx | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const system = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>('system');
+  const [mode, setModeState] = useState<ThemeMode>('dark');
   const [symbol, setSymbolState] = useState('₹');
   const [budget, setBudgetState] = useState(0);
 
   useEffect(() => {
     (async () => {
-      setModeState((await getSetting('theme', 'system')) as ThemeMode);
+      setModeState((await getSetting('theme', 'dark')) as ThemeMode);
       setSymbolState(await getSetting('symbol', '₹'));
       setBudgetState(Number(await getSetting('budget', '0')) || 0);
     })();

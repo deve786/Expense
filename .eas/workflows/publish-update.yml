@@ -1,0 +1,13 @@
+name: Publish OTA update
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  update:
+    name: Publish update to preview channel
+    type: update
+    params:
+      branch: preview
+      message: ${{ github.event.head_commit.message }}
