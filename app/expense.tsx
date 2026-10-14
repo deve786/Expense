@@ -29,6 +29,7 @@ export default function ExpenseForm() {
   const [catId, setCatId] = useState<number | null>(null);
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState('');
+  const [notes, setNotes] = useState('');
   const [method, setMethod] = useState<string>('UPI');
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
@@ -44,6 +45,7 @@ export default function ExpenseForm() {
           setCatId(e.category_id);
           setDate(e.date);
           setNote(e.note);
+          setNotes(e.notes);
           setMethod(e.method);
         }
         const existing = await listExpenseItems(editId);
@@ -89,7 +91,10 @@ export default function ExpenseForm() {
     if (!valid || catId === null) return;
     const custom = isOther ? customCat.trim() : '';
     const finalCatId = custom ? await findOrCreateCategory(custom) : catId;
-    const newId = await saveExpense({ id: editId, amount: round2(value), category_id: finalCatId, date, note: note.trim(), method });
+    const newId = await saveExpense({
+      id: editId, amount: round2(value), category_id: finalCatId, date,
+      note: note.trim(), notes: notes.trim(), method,
+    });
     const cleanItems = hasItems
       ? items.map((it) => ({ name: it.name.trim(), amount: round2(parseAmt(it.amount) || 0) })).filter((it) => it.amount > 0)
       : [];
@@ -179,6 +184,13 @@ export default function ExpenseForm() {
             </Pressable>
           )}
 
+          <Field
+            label="Title (optional)"
+            value={note}
+            onChangeText={setNote}
+            placeholder={hasItems ? 'e.g. Walmart run' : 'e.g. Lunch with team'}
+          />
+
           <T size={13} sub style={{ marginBottom: 9 }}>Category</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {cats.map((k) => (
@@ -220,7 +232,7 @@ export default function ExpenseForm() {
             />
           )}
 
-          <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder={hasItems ? 'e.g. Walmart run' : 'e.g. Lunch with team'} />
+          <Field label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Any extra detail" />
 
           <T size={13} sub style={{ marginBottom: 9 }}>Paid with</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>

@@ -8,6 +8,7 @@ export type Expense = {
   category_id: number;
   date: string; // YYYY-MM-DD
   note: string;
+  notes: string;
   method: string;
   recurring_id: number | null;
 };
@@ -44,6 +45,14 @@ const LEGACY_COLORS: Record<string, string> = {
   Food: '#E4572E', Transport: '#2E86AB', Shopping: '#A23B72', Bills: '#F18F01',
   Rent: '#5C6B73', Health: '#3BB273', Entertainment: '#7768AE', Other: '#8D99AE',
 };
+
+/** Adds a column to an existing table if it isn't there yet — SQLite has no "ADD COLUMN IF NOT EXISTS". */
+async function addColumnIfMissing(db: SQLite.SQLiteDatabase, table: string, column: string, definition: string) {
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (!cols.some((c) => c.name === column)) {
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -90,6 +99,7 @@ async function init() {
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
+  await addColumnIfMissing(db, 'expenses', 'notes', "TEXT NOT NULL DEFAULT ''");
   const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM categories');
   if (!row || row.c === 0) {
     for (const c of DEFAULT_CATEGORIES) {
@@ -189,14 +199,14 @@ export async function saveExpense(e: Omit<Expense, 'id' | 'recurring_id'> & { id
   const db = await getDb();
   if (e.id) {
     await db.runAsync(
-      'UPDATE expenses SET amount=?, category_id=?, date=?, note=?, method=? WHERE id=?',
-      e.amount, e.category_id, e.date, e.note, e.method, e.id
+      'UPDATE expenses SET amount=?, category_id=?, date=?, note=?, notes=?, method=? WHERE id=?',
+      e.amount, e.category_id, e.date, e.note, e.notes, e.method, e.id
     );
     return e.id;
   }
   const res = await db.runAsync(
-    'INSERT INTO expenses (amount, category_id, date, note, method) VALUES (?, ?, ?, ?, ?)',
-    e.amount, e.category_id, e.date, e.note, e.method
+    'INSERT INTO expenses (amount, category_id, date, note, notes, method) VALUES (?, ?, ?, ?, ?, ?)',
+    e.amount, e.category_id, e.date, e.note, e.notes, e.method
   );
   return res.lastInsertRowId;
 }

@@ -74,7 +74,7 @@ export default function RecurringScreen() {
 
         <Section title="Add a recurring expense" />
         <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" />
-        <Field label="Note" value={note} onChangeText={setNote} placeholder="e.g. Rent, Netflix" />
+        <Field label="Title (optional)" value={note} onChangeText={setNote} placeholder="e.g. Rent, Netflix" />
         <Field label="Day of the month" value={day} onChangeText={setDay} keyboardType="number-pad" placeholder="1" />
 
         <T size={13} sub style={{ marginBottom: 9 }}>Category</T>

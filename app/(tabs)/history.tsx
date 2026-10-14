@@ -28,6 +28,7 @@ export default function History() {
       if (!needle) return true;
       return (
         r.note.toLowerCase().includes(needle) ||
+        r.notes.toLowerCase().includes(needle) ||
         r.cat_name.toLowerCase().includes(needle) ||
         r.method.toLowerCase().includes(needle) ||
         String(r.amount).includes(needle) ||
@@ -40,7 +41,7 @@ export default function History() {
     <Screen>
       <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
         <Title style={{ marginBottom: 14 }}>History</Title>
-        <Field value={q} onChangeText={setQ} placeholder="Search notes, categories, amounts" />
+        <Field value={q} onChangeText={setQ} placeholder="Search titles, categories, amounts" />
       </View>
 
       <ScrollView
