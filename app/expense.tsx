@@ -58,13 +58,18 @@ export default function ExpenseForm() {
   const itemsTotal = items.reduce((s, it) => s + (parseAmt(it.amount) || 0), 0);
   const manualValue = parseAmt(amount);
   const value = hasItems ? itemsTotal : manualValue;
-  const itemsValid = !hasItems || items.every((it) => (parseAmt(it.amount) || 0) > 0);
+  // A row with nothing typed yet is just not filled in — it shouldn't block
+  // saving the items that already have an amount.
+  const itemsValid = !hasItems || items.some((it) => (parseAmt(it.amount) || 0) > 0);
   const isOther = cats.find((k) => k.id === catId)?.name === 'Other';
   const valid = !isNaN(value) && value > 0 && catId !== null && itemsValid;
 
   function startItems() {
+    // Seed with just the one row carrying forward whatever was already typed —
+    // "Add item" grows the list from here, so Save isn't blocked by a second,
+    // still-empty row the user never asked for.
     const seed = !isNaN(manualValue) && manualValue > 0 ? amount : '';
-    setItems([{ name: '', amount: seed }, { name: '', amount: '' }]);
+    setItems([{ name: '', amount: seed }]);
   }
   function clearItems() {
     if (itemsTotal > 0) setAmount(String(itemsTotal));

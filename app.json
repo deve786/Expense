@@ -38,7 +38,7 @@
     "extra": {
       "chatProxyUrl": "",
       "chatAppToken": "",
-      "otaBuild": 1,
+      "otaBuild": 4,
       "router": {},
       "eas": {
         "projectId": "dd34ff19-2227-439d-9f62-fde5c55c50a9"
