@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.0.1",
     "updates": {
       "url": "https://u.expo.dev/dd34ff19-2227-439d-9f62-fde5c55c50a9",
       "checkAutomatically": "ON_LOAD",
@@ -47,7 +47,7 @@
     "extra": {
       "chatProxyUrl": "",
       "chatAppToken": "",
-      "otaBuild": 13,
+      "otaBuild": 14,
       "router": {},
       "eas": {
         "projectId": "dd34ff19-2227-439d-9f62-fde5c55c50a9"
