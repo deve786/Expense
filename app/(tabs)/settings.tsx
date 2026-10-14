@@ -111,6 +111,7 @@ export default function Settings() {
           <T size={13.5} sub>OTA update</T>
           <T size={13.5} tabular>#{info.otaBuild}</T>
         </Row>
+        <NavRow label="What's New" icon="sparkles-outline" onPress={() => router.push('/whats-new')} />
         <Button
           title="Check for updates"
           kind="ghost"

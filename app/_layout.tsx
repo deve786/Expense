@@ -35,6 +35,7 @@ function Shell() {
             <Stack.Screen name="recurring" options={{ presentation: 'modal' }} />
             <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
             <Stack.Screen name="account" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="whats-new" options={{ presentation: 'modal' }} />
           </Stack>
         ) : (
           // Painted in theme colours so launch doesn't flash white before the DB opens.
