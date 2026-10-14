@@ -41,12 +41,12 @@ function guessCategoryName(title: string): string | null {
 }
 
 export default function ExpenseForm() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, mode: modeParam } = useLocalSearchParams<{ id?: string; mode?: string }>();
   const editId = id || undefined;
   const router = useRouter();
   const { c, symbol } = useTheme();
 
-  const [mode, setMode] = useState<Mode>(editId ? 'view' : 'edit');
+  const [mode, setMode] = useState<Mode>(editId ? (modeParam === 'edit' ? 'edit' : 'view') : 'edit');
   const [cats, setCats] = useState<Category[]>([]);
   const [amount, setAmount] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);

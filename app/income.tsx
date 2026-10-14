@@ -17,12 +17,12 @@ const parseAmt = (s: string) => parseFloat(s.replace(/,/g, ''));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function IncomeForm() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, mode: modeParam } = useLocalSearchParams<{ id?: string; mode?: string }>();
   const editId = id || undefined;
   const router = useRouter();
   const { c, symbol } = useTheme();
 
-  const [mode, setMode] = useState<Mode>(editId ? 'view' : 'edit');
+  const [mode, setMode] = useState<Mode>(editId ? (modeParam === 'edit' ? 'edit' : 'view') : 'edit');
   const [cats, setCats] = useState<Category[]>([]);
   const [amount, setAmount] = useState('');
   const [catId, setCatId] = useState<string | null>(null);

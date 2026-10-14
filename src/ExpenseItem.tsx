@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { deleteExpense, type ExpenseRow } from './db';
 import { prettyDate } from './dates';
+import { SwipeableRow } from './SwipeableRow';
 import { useTheme } from './theme';
 import { ConfirmDialog, IconDot, Money, Row, T } from './ui';
 
@@ -34,26 +35,32 @@ export function ExpenseItem({ e, showDate = true, onDeleted }: { e: ExpenseRow; 
 
   return (
     <>
-      <Pressable
-        onPress={() => router.push({ pathname: '/expense', params: { id: String(e.id) } })}
-        onLongPress={onLongPress}
-        accessibilityRole="button"
-        style={({ pressed }) => ({
-          opacity: pressed ? 0.55 : 1,
-          paddingVertical: 13,
-          borderBottomWidth: 1,
-          borderBottomColor: c.line,
-        })}
+      <SwipeableRow
+        onEdit={() => router.push({ pathname: '/expense', params: { id: String(e.id), mode: 'edit' } })}
+        onDelete={() => setConfirming(true)}
       >
-        <Row style={{ gap: 13 }}>
-          <IconDot icon={e.cat_icon} color={e.cat_color} />
-          <View style={{ flex: 1 }}>
-            <T size={15} weight="600" numberOfLines={1}>{e.note || e.cat_name}</T>
-            <T size={12.5} sub numberOfLines={1} style={{ marginTop: 2 }}>{meta}</T>
-          </View>
-          <Money value={e.amount} size={15.5} weight="600" />
-        </Row>
-      </Pressable>
+        <Pressable
+          onPress={() => router.push({ pathname: '/expense', params: { id: String(e.id) } })}
+          onLongPress={onLongPress}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            opacity: pressed ? 0.55 : 1,
+            paddingVertical: 13,
+            borderBottomWidth: 1,
+            borderBottomColor: c.line,
+            backgroundColor: c.bg,
+          })}
+        >
+          <Row style={{ gap: 13 }}>
+            <IconDot icon={e.cat_icon} color={e.cat_color} />
+            <View style={{ flex: 1 }}>
+              <T size={15} weight="600" numberOfLines={1}>{e.note || e.cat_name}</T>
+              <T size={12.5} sub numberOfLines={1} style={{ marginTop: 2 }}>{meta}</T>
+            </View>
+            <Money value={e.amount} size={15.5} weight="600" />
+          </Row>
+        </Pressable>
+      </SwipeableRow>
       <ConfirmDialog
         visible={confirming}
         title="Delete this expense?"
