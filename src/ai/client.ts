@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { addAiLog } from './logger';
 
 /**
  * Calls Gemini directly from the app — same approach as the PERAI project:
@@ -101,3 +102,43 @@ export function describeError(err: unknown): string {
   }
   return message || 'Something went wrong.';
 }
+
+export async function testAiConnection(): Promise<{ ok: boolean; message: string }> {
+  if (!hasApiKey()) {
+    const msg = 'No Gemini API key configured. Check EXPO_PUBLIC_GEMINI_API_KEY in .env.';
+    addAiLog({
+      type: 'test',
+      status: 'error',
+      error: msg,
+      model: ASK_MODEL,
+    });
+    return { ok: false, message: msg };
+  }
+
+  try {
+    const res = await requestText({
+      model: ASK_MODEL,
+      system: 'You are an AI assistant. Reply with "OK" and nothing else.',
+      user: 'Ping',
+      retries: 0,
+    });
+    const msg = `Connected successfully! Response: "${res.trim()}"`;
+    addAiLog({
+      type: 'test',
+      status: 'success',
+      result: msg,
+      model: ASK_MODEL,
+    });
+    return { ok: true, message: msg };
+  } catch (err) {
+    const msg = describeError(err);
+    addAiLog({
+      type: 'test',
+      status: 'error',
+      error: msg,
+      model: ASK_MODEL,
+    });
+    return { ok: false, message: msg };
+  }
+}
+

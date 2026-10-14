@@ -58,6 +58,7 @@ export default function ExpenseForm() {
   const [method, setMethod] = useState<string>('UPI');
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
+  const [aiSuggestedCat, setAiSuggestedCat] = useState(false); // true when customCat was filled by AI
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [aiGuessing, setAiGuessing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -138,13 +139,14 @@ export default function ExpenseForm() {
         return;
       }
 
-      // The AI suggested a category that doesn't exist yet — create it, so
-      // this and future titles like it land somewhere specific instead of
-      // defaulting to Other.
-      const newId = await findOrCreateCategory(name);
+      // The AI suggested a brand-new category — don't create it silently.
+      // Instead: select "Other" so the custom-category field appears, then
+      // pre-fill it with the AI's suggestion so the user can review/tweak it
+      // before it gets saved to the categories table on Save.
+      fallBackToOther(seq);
       if (seq !== aiSeq.current || !catAutoPick.current) return;
-      setCats(await listCategories());
-      setCatId(newId);
+      setCustomCat(name);
+      setAiSuggestedCat(true);
     } finally {
       if (seq === aiSeq.current) setAiGuessing(false);
     }
@@ -156,20 +158,30 @@ export default function ExpenseForm() {
     if (aiDebounce.current) clearTimeout(aiDebounce.current);
     aiDebounce.current = null;
     setAiGuessing(false);
+    // Clear any previous AI-suggested category name when the title changes,
+    // so a stale suggestion from an earlier title doesn't linger.
+    if (aiSuggestedCat) { setCustomCat(''); setAiSuggestedCat(false); }
     if (!catAutoPick.current) return;
 
     const guess = guessCategoryName(t);
     if (!guess) return;
-    const match = cats.find((k) => k.name === guess);
-    if (match) {
-      setCatId(match.id);
-      return;
+
+    // Only use the keyword match directly when it names a SPECIFIC category
+    // (not the "Other" fallback). When the keyword list falls back to "Other"
+    // it means it doesn't recognise the title — we still need the AI to find
+    // something more specific. Returning early here was the bug: it matched
+    // the real "Other" category row and skipped the AI debounce entirely.
+    if (guess !== 'Other') {
+      const match = cats.find((k) => k.name === guess);
+      if (match) {
+        setCatId(match.id);
+        return; // Specific keyword hit — no AI needed.
+      }
     }
 
-    // Either the keyword list said "Other", or it named a category that
-    // doesn't actually exist (e.g. a default the user removed). Land on the
-    // real "Other" as a safe interim pick while the AI looks for something
-    // more specific, once typing pauses.
+    // Either the keyword list said "Other" (unknown title), or it named a
+    // category the user has since removed. Select "Other" as a safe interim
+    // pick while the AI looks for something more specific after typing pauses.
     const other = cats.find((k) => k.name === 'Other');
     if (other) setCatId(other.id);
     const seq = aiSeq.current;
@@ -185,6 +197,8 @@ export default function ExpenseForm() {
     if (aiDebounce.current) clearTimeout(aiDebounce.current);
     setAiGuessing(false);
     setCatId(id);
+    // Clear the AI suggestion when the user manually picks a category.
+    if (aiSuggestedCat) { setCustomCat(''); setAiSuggestedCat(false); }
   }
 
   const hasItems = items.length > 0;
@@ -445,9 +459,9 @@ export default function ExpenseForm() {
 
           {isOther && (
             <Field
-              label="Name the new category (optional)"
+              label={aiSuggestedCat && customCat ? 'AI suggested category name (edit if needed)' : 'Name the new category (optional)'}
               value={customCat}
-              onChangeText={setCustomCat}
+              onChangeText={(v) => { setCustomCat(v); if (aiSuggestedCat && !v) setAiSuggestedCat(false); }}
               placeholder="e.g. Gifts"
               maxLength={30}
               containerStyle={{ marginTop: 12 }}

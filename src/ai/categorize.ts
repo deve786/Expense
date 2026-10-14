@@ -1,4 +1,5 @@
-import { ASK_MODEL, hasApiKey, requestText } from './client';
+import { ASK_MODEL, describeError, hasApiKey, requestText } from './client';
+import { addAiLog } from './logger';
 
 const SYSTEM = 'You categorize personal expenses. Given an expense title and the user\'s '
   + 'existing category names, reply with the single best fit. Prefer an existing category '
@@ -19,18 +20,57 @@ const MAX_NAME_LENGTH = 24;
  * hiding the loading state.
  */
 export async function guessCategoryWithAI(title: string, categoryNames: string[]): Promise<string | null> {
-  if (!hasApiKey() || !title.trim()) return null;
+  const trimmed = title.trim();
+  if (!trimmed) return null;
+
+  if (!hasApiKey()) {
+    addAiLog({
+      type: 'categorize',
+      title: trimmed,
+      status: 'error',
+      error: 'No Gemini API key configured. Add EXPO_PUBLIC_GEMINI_API_KEY to .env and restart Expo with --clear.',
+      model: ASK_MODEL,
+    });
+    return null;
+  }
+
   try {
     const reply = await requestText({
       model: ASK_MODEL,
       system: SYSTEM,
-      user: `Existing categories: ${categoryNames.join(', ')}\nExpense title: "${title.trim()}"`,
+      user: `Existing categories: ${categoryNames.join(', ')}\nExpense title: "${trimmed}"`,
       retries: 0,
     });
     const clean = reply.trim().replace(/^["'.]+|["'.]+$/g, '');
-    if (!clean || clean.length > MAX_NAME_LENGTH) return null;
+    if (!clean || clean.length > MAX_NAME_LENGTH) {
+      addAiLog({
+        type: 'categorize',
+        title: trimmed,
+        status: 'error',
+        error: `Model returned invalid/too long category name: "${clean}"`,
+        model: ASK_MODEL,
+      });
+      return null;
+    }
+
+    addAiLog({
+      type: 'categorize',
+      title: trimmed,
+      status: 'success',
+      result: clean,
+      model: ASK_MODEL,
+    });
+
     return clean;
-  } catch {
+  } catch (err) {
+    const errDesc = describeError(err);
+    addAiLog({
+      type: 'categorize',
+      title: trimmed,
+      status: 'error',
+      error: errDesc,
+      model: ASK_MODEL,
+    });
     return null;
   }
 }

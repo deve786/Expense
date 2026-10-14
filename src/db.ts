@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 import { todayStr, ymKey } from './dates';
 
 export type Category = { id: string; name: string; icon: string; color: string };
@@ -284,7 +285,8 @@ export function onDatabaseChange(listener: () => void): () => void {
 
 async function init() {
   const db = await SQLite.openDatabaseAsync('spendly.db', { enableChangeListener: true });
-  await db.execAsync('PRAGMA journal_mode = WAL;');
+  // WAL journal mode is not supported by the SQLite WASM backend used on web.
+  if (Platform.OS !== 'web') await db.execAsync('PRAGMA journal_mode = WAL;');
   const migrated = await migrateLegacyIdsIfNeeded(db);
   if (!migrated) await db.execAsync(SCHEMA_SQL); // fresh install, or already migrated: ensure tables exist
 
