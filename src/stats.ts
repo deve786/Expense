@@ -4,7 +4,7 @@ import { addDays, daysBetween, fromStr } from './dates';
 export type CatTotal = { name: string; color: string; icon: string; total: number; count: number };
 export type DayTotal = { label: string; date: string; total: number };
 
-export const sum = (rows: ExpenseRow[]) => rows.reduce((a, r) => a + r.amount, 0);
+export const sum = (rows: { amount: number }[]) => rows.reduce((a, r) => a + r.amount, 0);
 
 export function byCategory(rows: ExpenseRow[]): CatTotal[] {
   const map = new Map<string, CatTotal>();

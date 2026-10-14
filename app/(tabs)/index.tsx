@@ -1,18 +1,22 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { listExpenses, refreshRecurring, type ExpenseRow } from '@/db';
+import { listExpenses, listIncome, refreshRecurring, type ExpenseRow, type IncomeRow } from '@/db';
 import { monthName, monthRange, todayStr, addDays } from '@/dates';
 import { byCategory, fmtMoney, sum } from '@/stats';
 import { budgetTone, useTheme } from '@/theme';
 import { Button, Divider, Empty, Meter, Money, Row, Screen, Section, T } from '@/ui';
 import { ExpenseItem } from '@/ExpenseItem';
+import { IncomeItem } from '@/IncomeItem';
+
+type Recent = { kind: 'expense'; row: ExpenseRow } | { kind: 'income'; row: IncomeRow };
 
 export default function Home() {
   const { c, symbol, budget } = useTheme();
   const router = useRouter();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
-  const [recent, setRecent] = useState<ExpenseRow[]>([]);
+  const [incomeRows, setIncomeRows] = useState<IncomeRow[]>([]);
+  const [recent, setRecent] = useState<Recent[]>([]);
 
   // Derived from the date string rather than a Date object: primitives keep the
   // memoised range referentially stable, which the focus effect depends on.
@@ -21,17 +25,28 @@ export default function Home() {
   const month0 = Number(today.slice(5, 7)) - 1;
   const { from, to } = useMemo(() => monthRange(year, month0), [year, month0]);
 
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        await refreshRecurring();
-        setRows(await listExpenses(from, to));
-        setRecent((await listExpenses()).slice(0, 6));
-      })();
-    }, [from, to])
-  );
+  const load = useCallback(async () => {
+    await refreshRecurring();
+    const [monthExpenses, monthIncome, allExpenses, allIncome] = await Promise.all([
+      listExpenses(from, to),
+      listIncome(from, to),
+      listExpenses(),
+      listIncome(),
+    ]);
+    setRows(monthExpenses);
+    setIncomeRows(monthIncome);
+    const merged: Recent[] = [
+      ...allExpenses.map((row): Recent => ({ kind: 'expense', row })),
+      ...allIncome.map((row): Recent => ({ kind: 'income', row })),
+    ].sort((a, b) => (a.row.date === b.row.date ? b.row.id - a.row.id : b.row.date.localeCompare(a.row.date)));
+    setRecent(merged.slice(0, 6));
+  }, [from, to]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const total = sum(rows);
+  const incomeTotal = sum(incomeRows);
+  const net = incomeTotal - total;
   const todayTotal = sum(rows.filter((r) => r.date === today));
   const weekTotal = sum(rows.filter((r) => r.date >= addDays(today, -6)));
   const top = byCategory(rows)[0];
@@ -61,7 +76,20 @@ export default function Home() {
           </View>
         )}
 
-        <Row style={{ marginTop: 24, alignItems: 'stretch' }}>
+        <Row style={{ marginTop: 20 }}>
+          <View style={{ flex: 1 }}>
+            <T size={13} sub>Income</T>
+            <T size={18} weight="700" tabular style={{ marginTop: 3, color: c.good }}>+{fmtMoney(incomeTotal, symbol)}</T>
+          </View>
+          <View style={{ flex: 1 }}>
+            <T size={13} sub>Net</T>
+            <T size={18} weight="700" tabular style={{ marginTop: 3, color: net >= 0 ? c.good : c.danger }}>
+              {net >= 0 ? '+' : ''}{fmtMoney(net, symbol)}
+            </T>
+          </View>
+        </Row>
+
+        <Row style={{ marginTop: 20, alignItems: 'stretch' }}>
           <View style={{ flex: 1 }}>
             <T size={13} sub>Today</T>
             <Money value={todayTotal} size={21} weight="700" style={{ marginTop: 3 }} />
@@ -87,13 +115,26 @@ export default function Home() {
           </>
         )}
 
-        <Button title="Add expense" icon="add" onPress={() => router.push('/expense')} style={{ marginTop: 24 }} />
+        <Row style={{ gap: 10, marginTop: 24 }}>
+          <Button title="Add expense" icon="add" onPress={() => router.push('/expense')} style={{ flex: 1 }} />
+          <Button
+            title="Add income"
+            icon="add"
+            kind="ghost"
+            onPress={() => router.push('/income')}
+            style={{ flex: 1, borderColor: c.good }}
+          />
+        </Row>
 
         <Section title="Recent" right={<T size={14} sub onPress={() => router.push('/history')}>See all</T>} />
         {recent.length === 0 ? (
-          <Empty title="No expenses yet" hint="Add your first one to start tracking." />
+          <Empty title="Nothing yet" hint="Add an expense or income entry to start tracking." />
         ) : (
-          recent.map((e) => <ExpenseItem key={e.id} e={e} />)
+          recent.map((r) =>
+            r.kind === 'expense'
+              ? <ExpenseItem key={`e${r.row.id}`} e={r.row} onDeleted={load} />
+              : <IncomeItem key={`i${r.row.id}`} e={r.row} onDeleted={load} />
+          )
         )}
       </ScrollView>
     </Screen>

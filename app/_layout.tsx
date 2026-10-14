@@ -11,6 +11,7 @@ import { useAutoUpdate } from '@/useAutoUpdate';
 function Shell() {
   const { c, isDark } = useTheme();
   const [ready, setReady] = useState(false);
+  const [bannerHeight, setBannerHeight] = useState(0);
 
   useAutoUpdate();
 
@@ -19,23 +20,26 @@ function Shell() {
   }, []);
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {ready ? (
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="expense" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="recurring" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
-        </Stack>
-      ) : (
-        // Painted in theme colours so launch doesn't flash white before the DB opens.
-        <View style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={c.faint} />
-        </View>
-      )}
-      <UpdateBanner />
-    </>
+      <UpdateBanner onHeightChange={setBannerHeight} />
+      <View style={{ flex: 1, marginTop: bannerHeight }}>
+        {ready ? (
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="expense" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="income" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="recurring" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
+          </Stack>
+        ) : (
+          // Painted in theme colours so launch doesn't flash white before the DB opens.
+          <View style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={c.faint} />
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 

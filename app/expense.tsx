@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -6,16 +6,38 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import {
   METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, listExpenseItems,
-  saveExpense, saveExpenseItems, type Category,
+  saveExpense, saveExpenseItems, type Category, type ExpenseItem as ExpenseItemRow,
 } from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
 import { numerals, radius, useTheme } from '@/theme';
-import { Button, Chip, Field, Header, Row, Screen, T } from '@/ui';
+import { Button, Chip, Divider, Field, Header, IconDot, Money, Row, Screen, T } from '@/ui';
 
-type DraftItem = { name: string; amount: string };
+type DraftItem = { name: string; qty: string; amount: string };
+type Mode = 'view' | 'edit';
 
 const parseAmt = (s: string) => parseFloat(s.replace(/,/g, ''));
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const lineTotal = (it: DraftItem) => (parseAmt(it.qty) || 1) * (parseAmt(it.amount) || 0);
+
+/** Keyword -> default category name. First match wins; falls back to "Other" when nothing matches. */
+const CATEGORY_KEYWORDS: [string, string[]][] = [
+  ['Food', ['food', 'restaurant', 'pizza', 'coffee', 'cafe', 'lunch', 'dinner', 'breakfast', 'snack', 'swiggy', 'zomato', 'grocery', 'groceries']],
+  ['Transport', ['uber', 'ola', 'taxi', 'cab', 'bus', 'train', 'metro', 'fuel', 'petrol', 'diesel', 'parking', 'auto']],
+  ['Shopping', ['amazon', 'flipkart', 'shopping', 'clothes', 'shoes', 'mall']],
+  ['Bills', ['electricity', 'water bill', 'internet', 'wifi', 'phone bill', 'recharge', 'bill']],
+  ['Rent', ['rent']],
+  ['Health', ['doctor', 'medicine', 'pharmacy', 'hospital', 'clinic', 'medical']],
+  ['Entertainment', ['movie', 'netflix', 'spotify', 'cinema', 'concert', 'game']],
+];
+
+function guessCategoryName(title: string): string | null {
+  const t = title.toLowerCase();
+  if (!t.trim()) return null;
+  for (const [name, words] of CATEGORY_KEYWORDS) {
+    if (words.some((w) => t.includes(w))) return name;
+  }
+  return 'Other';
+}
 
 export default function ExpenseForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -23,9 +45,11 @@ export default function ExpenseForm() {
   const router = useRouter();
   const { c, symbol } = useTheme();
 
+  const [mode, setMode] = useState<Mode>(editId ? 'view' : 'edit');
   const [cats, setCats] = useState<Category[]>([]);
   const [amount, setAmount] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
+  const [viewItems, setViewItems] = useState<ExpenseItemRow[]>([]);
   const [catId, setCatId] = useState<number | null>(null);
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState('');
@@ -33,6 +57,8 @@ export default function ExpenseForm() {
   const [method, setMethod] = useState<string>('UPI');
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
+  // Stops auto-categorising from title once the user has picked one themselves.
+  const catAutoPick = useRef(true);
 
   useEffect(() => {
     (async () => {
@@ -49,36 +75,55 @@ export default function ExpenseForm() {
           setMethod(e.method);
         }
         const existing = await listExpenseItems(editId);
-        if (existing.length) setItems(existing.map((it) => ({ name: it.name, amount: String(it.amount) })));
+        setViewItems(existing);
+        if (existing.length) {
+          setItems(existing.map((it) => ({ name: it.name, qty: String(it.quantity), amount: String(it.amount) })));
+        }
+        catAutoPick.current = false;
       } else if (cs.length) {
         setCatId(cs[0].id);
       }
     })();
   }, [editId]);
 
+  function onChangeNote(t: string) {
+    setNote(t);
+    if (!catAutoPick.current) return;
+    const guess = guessCategoryName(t);
+    if (!guess) return;
+    const match = cats.find((k) => k.name === guess);
+    if (match) setCatId(match.id);
+  }
+
+  function onPickCategory(id: number) {
+    catAutoPick.current = false;
+    setCatId(id);
+  }
+
   const hasItems = items.length > 0;
-  const itemsTotal = items.reduce((s, it) => s + (parseAmt(it.amount) || 0), 0);
+  const itemsTotal = items.reduce((s, it) => s + lineTotal(it), 0);
   const manualValue = parseAmt(amount);
   const value = hasItems ? itemsTotal : manualValue;
   // A row with nothing typed yet is just not filled in — it shouldn't block
   // saving the items that already have an amount.
-  const itemsValid = !hasItems || items.some((it) => (parseAmt(it.amount) || 0) > 0);
+  const itemsValid = !hasItems || items.some((it) => lineTotal(it) > 0);
   const isOther = cats.find((k) => k.id === catId)?.name === 'Other';
   const valid = !isNaN(value) && value > 0 && catId !== null && itemsValid;
+  const cat = cats.find((k) => k.id === catId);
 
   function startItems() {
     // Seed with just the one row carrying forward whatever was already typed —
     // "Add item" grows the list from here, so Save isn't blocked by a second,
     // still-empty row the user never asked for.
     const seed = !isNaN(manualValue) && manualValue > 0 ? amount : '';
-    setItems([{ name: '', amount: seed }]);
+    setItems([{ name: '', qty: '1', amount: seed }]);
   }
   function clearItems() {
     if (itemsTotal > 0) setAmount(String(itemsTotal));
     setItems([]);
   }
   function addItem() {
-    setItems((prev) => [...prev, { name: '', amount: '' }]);
+    setItems((prev) => [...prev, { name: '', qty: '1', amount: '' }]);
   }
   function updateItem(i: number, patch: Partial<DraftItem>) {
     setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -96,7 +141,9 @@ export default function ExpenseForm() {
       note: note.trim(), notes: notes.trim(), method,
     });
     const cleanItems = hasItems
-      ? items.map((it) => ({ name: it.name.trim(), amount: round2(parseAmt(it.amount) || 0) })).filter((it) => it.amount > 0)
+      ? items
+          .map((it) => ({ name: it.name.trim(), quantity: parseAmt(it.qty) || 1, amount: round2(parseAmt(it.amount) || 0) }))
+          .filter((it) => it.quantity * it.amount > 0)
       : [];
     await saveExpenseItems(newId, cleanItems);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -116,11 +163,74 @@ export default function ExpenseForm() {
     paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, color: c.text,
   };
 
+  if (mode === 'view') {
+    return (
+      <Screen edges={['top', 'bottom']}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 32 }}>
+          <Header
+            title="Expense"
+            onClose={() => router.back()}
+            right={
+              <Pressable onPress={() => setMode('edit')} hitSlop={14} accessibilityLabel="Edit" style={{ marginRight: 14 }}>
+                <Ionicons name="pencil-outline" size={21} color={c.sub} />
+              </Pressable>
+            }
+          />
+
+          <Row style={{ alignItems: 'center', gap: 10, marginTop: 10 }}>
+            {cat && <IconDot icon={cat.icon} color={cat.color} size={44} />}
+            <View style={{ flex: 1 }}>
+              <T size={15} weight="600">{note || cat?.name || ''}</T>
+              {note ? <T size={13} sub style={{ marginTop: 2 }}>{cat?.name}</T> : null}
+            </View>
+          </Row>
+          <Money value={value} size={40} weight="700" style={{ marginTop: 18, letterSpacing: -1 }} />
+
+          <Divider style={{ marginTop: 20, marginBottom: 14 }} />
+
+          {viewItems.length > 0 && (
+            <>
+              {viewItems.map((it) => (
+                <Row key={it.id} style={{ justifyContent: 'space-between', paddingVertical: 7 }}>
+                  <T size={14} sub style={{ flex: 1 }} numberOfLines={1}>
+                    {it.name || 'Item'}{it.quantity !== 1 ? ` ×${it.quantity}` : ''}
+                  </T>
+                  <Money value={it.quantity * it.amount} size={14} />
+                </Row>
+              ))}
+              <Divider style={{ marginTop: 10, marginBottom: 14 }} />
+            </>
+          )}
+
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 6 }}>
+            <T size={13.5} sub>Date</T>
+            <T size={13.5}>{prettyDate(date)}</T>
+          </Row>
+          <Row style={{ justifyContent: 'space-between', paddingVertical: 6 }}>
+            <T size={13.5} sub>Paid with</T>
+            <T size={13.5}>{method}</T>
+          </Row>
+          {notes.trim().length > 0 && (
+            <View style={{ marginTop: 14 }}>
+              <T size={13} sub style={{ marginBottom: 4 }}>Notes</T>
+              <T size={14.5} style={{ lineHeight: 20 }}>{notes}</T>
+            </View>
+          )}
+
+          <Button title="Edit expense" icon="pencil-outline" kind="ghost" onPress={() => setMode('edit')} style={{ marginTop: 24 }} />
+        </ScrollView>
+      </Screen>
+    );
+  }
+
   return (
     <Screen edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
-          <Header title={editId ? 'Edit expense' : 'New expense'} onClose={() => router.back()} />
+          <Header
+            title={editId ? 'Edit expense' : 'New expense'}
+            onClose={editId ? () => setMode('view') : () => router.back()}
+          />
 
           <Row style={{ alignItems: 'center', gap: 6, marginTop: 6, marginBottom: hasItems ? 2 : 22 }}>
             <T size={34} weight="600" sub>{symbol}</T>
@@ -151,26 +261,42 @@ export default function ExpenseForm() {
                 <T size={13} sub onPress={clearItems}>Clear</T>
               </Row>
               {items.map((it, i) => (
-                <Row key={i} style={{ gap: 8, marginBottom: 8 }}>
-                  <TextInput
-                    value={it.name}
-                    onChangeText={(t) => updateItem(i, { name: t })}
-                    placeholder={`Item ${i + 1}`}
-                    placeholderTextColor={c.faint}
-                    style={[itemInputStyle, { flex: 1 }]}
-                  />
-                  <TextInput
-                    value={it.amount}
-                    onChangeText={(t) => updateItem(i, { amount: t })}
-                    placeholder="0"
-                    placeholderTextColor={c.faint}
-                    keyboardType="decimal-pad"
-                    style={[itemInputStyle, numerals, { width: 92, textAlign: 'right' }]}
-                  />
-                  <Pressable onPress={() => removeItem(i)} hitSlop={10} accessibilityLabel={`Remove item ${i + 1}`}>
-                    <Ionicons name="close-circle" size={22} color={c.faint} />
-                  </Pressable>
-                </Row>
+                <View key={i} style={{ marginBottom: 10 }}>
+                  <Row style={{ gap: 8, marginBottom: 6 }}>
+                    <TextInput
+                      value={it.name}
+                      onChangeText={(t) => updateItem(i, { name: t })}
+                      placeholder={`Item ${i + 1}`}
+                      placeholderTextColor={c.faint}
+                      style={[itemInputStyle, { flex: 1 }]}
+                    />
+                    <Pressable onPress={() => removeItem(i)} hitSlop={10} accessibilityLabel={`Remove item ${i + 1}`}>
+                      <Ionicons name="close-circle" size={22} color={c.faint} />
+                    </Pressable>
+                  </Row>
+                  <Row style={{ gap: 8 }}>
+                    <TextInput
+                      value={it.qty}
+                      onChangeText={(t) => updateItem(i, { qty: t })}
+                      placeholder="1"
+                      placeholderTextColor={c.faint}
+                      keyboardType="decimal-pad"
+                      style={[itemInputStyle, numerals, { width: 56, textAlign: 'center' }]}
+                    />
+                    <T size={15} sub style={{ alignSelf: 'center' }}>×</T>
+                    <TextInput
+                      value={it.amount}
+                      onChangeText={(t) => updateItem(i, { amount: t })}
+                      placeholder="price"
+                      placeholderTextColor={c.faint}
+                      keyboardType="decimal-pad"
+                      style={[itemInputStyle, numerals, { flex: 1, textAlign: 'right' }]}
+                    />
+                    <T size={14} sub tabular style={{ width: 64, textAlign: 'right', alignSelf: 'center' }}>
+                      {lineTotal(it) > 0 ? (lineTotal(it) % 1 === 0 ? lineTotal(it) : lineTotal(it).toFixed(2)) : ''}
+                    </T>
+                  </Row>
+                </View>
               ))}
               <Pressable onPress={addItem} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                 <Ionicons name="add-circle-outline" size={16} color={c.sub} />
@@ -187,14 +313,14 @@ export default function ExpenseForm() {
           <Field
             label="Title (optional)"
             value={note}
-            onChangeText={setNote}
+            onChangeText={onChangeNote}
             placeholder={hasItems ? 'e.g. Walmart run' : 'e.g. Lunch with team'}
           />
 
           <T size={13} sub style={{ marginBottom: 9 }}>Category</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {cats.map((k) => (
-              <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => setCatId(k.id)} />
+              <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => onPickCategory(k.id)} />
             ))}
           </View>
 

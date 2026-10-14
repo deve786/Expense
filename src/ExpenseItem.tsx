@@ -1,12 +1,13 @@
 import React from 'react';
-import { Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { ExpenseRow } from './db';
+import * as Haptics from 'expo-haptics';
+import { deleteExpense, type ExpenseRow } from './db';
 import { prettyDate } from './dates';
 import { useTheme } from './theme';
 import { IconDot, Money, Row, T } from './ui';
 
-export function ExpenseItem({ e, showDate = true }: { e: ExpenseRow; showDate?: boolean }) {
+export function ExpenseItem({ e, showDate = true, onDeleted }: { e: ExpenseRow; showDate?: boolean; onDeleted?: () => void }) {
   const { c } = useTheme();
   const router = useRouter();
   const meta = [
@@ -19,9 +20,18 @@ export function ExpenseItem({ e, showDate = true }: { e: ExpenseRow; showDate?: 
     .filter(Boolean)
     .join('  ·  ');
 
+  function onLongPress() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    Alert.alert('Delete this expense?', 'It will be removed from your history.', [
+      { text: 'Keep', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteExpense(e.id); onDeleted?.(); } },
+    ]);
+  }
+
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/expense', params: { id: String(e.id) } })}
+      onLongPress={onLongPress}
       accessibilityRole="button"
       style={({ pressed }) => ({
         opacity: pressed ? 0.55 : 1,

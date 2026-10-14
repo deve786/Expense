@@ -13,7 +13,7 @@ export type Expense = {
   recurring_id: number | null;
 };
 export type ExpenseRow = Expense & { cat_name: string; cat_icon: string; cat_color: string; item_count: number };
-export type ExpenseItem = { id: number; expense_id: number; name: string; amount: number };
+export type ExpenseItem = { id: number; expense_id: number; name: string; quantity: number; amount: number };
 export type Recurring = {
   id: number;
   amount: number;
@@ -24,6 +24,17 @@ export type Recurring = {
   last_ym: string;
   cat_name?: string;
 };
+
+export type Income = {
+  id: number;
+  amount: number;
+  category_id: number;
+  date: string;
+  note: string;
+  notes: string;
+  method: string;
+};
+export type IncomeRow = Income & { cat_name: string; cat_icon: string; cat_color: string };
 
 export const METHODS = ['Cash', 'UPI', 'Card', 'Bank'] as const;
 
@@ -45,6 +56,16 @@ const LEGACY_COLORS: Record<string, string> = {
   Food: '#E4572E', Transport: '#2E86AB', Shopping: '#A23B72', Bills: '#F18F01',
   Rent: '#5C6B73', Health: '#3BB273', Entertainment: '#7768AE', Other: '#8D99AE',
 };
+
+const DEFAULT_INCOME_CATEGORIES: Omit<Category, 'id'>[] = [
+  { name: 'Salary', icon: 'cash-outline', color: '#C8553D' },
+  { name: 'Freelance', icon: 'laptop-outline', color: '#2E7DB8' },
+  { name: 'Business', icon: 'storefront-outline', color: '#A8831F' },
+  { name: 'Gift', icon: 'gift-outline', color: '#7159C4' },
+  { name: 'Refund', icon: 'return-up-back-outline', color: '#2E9465' },
+  { name: 'Interest', icon: 'trending-up-outline', color: '#B0479B' },
+  { name: 'Other', icon: 'ellipsis-horizontal-circle-outline', color: '#0D8FAF' },
+];
 
 /** Adds a column to an existing table if it isn't there yet — SQLite has no "ADD COLUMN IF NOT EXISTS". */
 async function addColumnIfMissing(db: SQLite.SQLiteDatabase, table: string, column: string, definition: string) {
@@ -98,8 +119,25 @@ async function init() {
       last_ym TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS income_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      icon TEXT NOT NULL,
+      color TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS income (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      amount REAL NOT NULL,
+      category_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      method TEXT NOT NULL DEFAULT 'Cash'
+    );
+    CREATE INDEX IF NOT EXISTS idx_income_date ON income(date);
   `);
   await addColumnIfMissing(db, 'expenses', 'notes', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, 'expense_items', 'quantity', "REAL NOT NULL DEFAULT 1");
   const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM categories');
   if (!row || row.c === 0) {
     for (const c of DEFAULT_CATEGORIES) {
@@ -109,6 +147,12 @@ async function init() {
     // Repaint only the defaults the user never customised, so their own picks survive.
     for (const c of DEFAULT_CATEGORIES) {
       await db.runAsync('UPDATE categories SET color = ? WHERE name = ? AND color = ?', c.color, c.name, LEGACY_COLORS[c.name]);
+    }
+  }
+  const incomeRow = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM income_categories');
+  if (!incomeRow || incomeRow.c === 0) {
+    for (const c of DEFAULT_INCOME_CATEGORIES) {
+      await db.runAsync('INSERT INTO income_categories (name, icon, color) VALUES (?, ?, ?)', c.name, c.icon, c.color);
     }
   }
   await generateRecurring(db);
@@ -224,12 +268,73 @@ export async function listExpenseItems(expenseId: number) {
 }
 
 /** Replaces the full item list for an expense — simplest correct behaviour for a small, user-edited list. */
-export async function saveExpenseItems(expenseId: number, items: { name: string; amount: number }[]) {
+export async function saveExpenseItems(expenseId: number, items: { name: string; quantity: number; amount: number }[]) {
   const db = await getDb();
   await db.runAsync('DELETE FROM expense_items WHERE expense_id = ?', expenseId);
   for (const it of items) {
-    await db.runAsync('INSERT INTO expense_items (expense_id, name, amount) VALUES (?, ?, ?)', expenseId, it.name.trim(), it.amount);
+    await db.runAsync(
+      'INSERT INTO expense_items (expense_id, name, quantity, amount) VALUES (?, ?, ?, ?)',
+      expenseId, it.name.trim(), it.quantity, it.amount
+    );
   }
+}
+
+// ---------- Income ----------
+export async function listIncomeCategories() {
+  const db = await getDb();
+  return db.getAllAsync<Category>('SELECT * FROM income_categories ORDER BY id');
+}
+
+/** Return the id of the income category with this name (case-insensitive), creating it if it doesn't exist. */
+export async function findOrCreateIncomeCategory(name: string) {
+  const db = await getDb();
+  const n = name.trim();
+  const existing = await db.getFirstAsync<{ id: number }>('SELECT id FROM income_categories WHERE LOWER(name) = LOWER(?)', n);
+  if (existing) return existing.id;
+  const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM income_categories');
+  const color = CATEGORY_COLORS[(count?.c ?? 0) % CATEGORY_COLORS.length];
+  const res = await db.runAsync('INSERT INTO income_categories (name, icon, color) VALUES (?, ?, ?)', n, 'pricetag-outline', color);
+  return res.lastInsertRowId;
+}
+
+const INCOME_SELECT = `
+  SELECT i.*, c.name AS cat_name, c.icon AS cat_icon, c.color AS cat_color
+  FROM income i JOIN income_categories c ON c.id = i.category_id`;
+
+export async function listIncome(from?: string, to?: string) {
+  const db = await getDb();
+  if (from && to) {
+    return db.getAllAsync<IncomeRow>(
+      `${INCOME_SELECT} WHERE i.date >= ? AND i.date <= ? ORDER BY i.date DESC, i.id DESC`, from, to
+    );
+  }
+  return db.getAllAsync<IncomeRow>(`${INCOME_SELECT} ORDER BY i.date DESC, i.id DESC`);
+}
+
+export async function getIncome(id: number) {
+  const db = await getDb();
+  return db.getFirstAsync<Income>('SELECT * FROM income WHERE id = ?', id);
+}
+
+export async function saveIncome(e: Omit<Income, 'id'> & { id?: number }): Promise<number> {
+  const db = await getDb();
+  if (e.id) {
+    await db.runAsync(
+      'UPDATE income SET amount=?, category_id=?, date=?, note=?, notes=?, method=? WHERE id=?',
+      e.amount, e.category_id, e.date, e.note, e.notes, e.method, e.id
+    );
+    return e.id;
+  }
+  const res = await db.runAsync(
+    'INSERT INTO income (amount, category_id, date, note, notes, method) VALUES (?, ?, ?, ?, ?, ?)',
+    e.amount, e.category_id, e.date, e.note, e.notes, e.method
+  );
+  return res.lastInsertRowId;
+}
+
+export async function deleteIncome(id: number) {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM income WHERE id = ?', id);
 }
 
 // ---------- Recurring ----------
