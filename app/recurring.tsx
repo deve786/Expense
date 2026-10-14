@@ -14,7 +14,7 @@ export default function RecurringScreen() {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [day, setDay] = useState('1');
-  const [catId, setCatId] = useState<number | null>(null);
+  const [catId, setCatId] = useState<string | null>(null);
   const [method, setMethod] = useState<string>('UPI');
   const [toRemove, setToRemove] = useState<Recurring | null>(null);
 

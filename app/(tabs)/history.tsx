@@ -54,7 +54,7 @@ export default function History() {
           row.date.includes(needle)
         );
       })
-      .sort((a, b) => (a.row.date === b.row.date ? b.row.id - a.row.id : b.row.date.localeCompare(a.row.date)));
+      .sort((a, b) => b.row.date.localeCompare(a.row.date));
   }, [expenseRows, incomeRows, q, catName, kind]);
 
   const expenseTotal = sum(filtered.filter((e) => e.kind === 'expense').map((e) => e.row));

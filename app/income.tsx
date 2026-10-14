@@ -18,14 +18,14 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function IncomeForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const editId = id ? Number(id) : undefined;
+  const editId = id || undefined;
   const router = useRouter();
   const { c, symbol } = useTheme();
 
   const [mode, setMode] = useState<Mode>(editId ? 'view' : 'edit');
   const [cats, setCats] = useState<Category[]>([]);
   const [amount, setAmount] = useState('');
-  const [catId, setCatId] = useState<number | null>(null);
+  const [catId, setCatId] = useState<string | null>(null);
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState('');
   const [notes, setNotes] = useState('');

@@ -41,7 +41,7 @@ function guessCategoryName(title: string): string | null {
 
 export default function ExpenseForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const editId = id ? Number(id) : undefined;
+  const editId = id || undefined;
   const router = useRouter();
   const { c, symbol } = useTheme();
 
@@ -50,7 +50,7 @@ export default function ExpenseForm() {
   const [amount, setAmount] = useState('');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [viewItems, setViewItems] = useState<ExpenseItemRow[]>([]);
-  const [catId, setCatId] = useState<number | null>(null);
+  const [catId, setCatId] = useState<string | null>(null);
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState('');
   const [notes, setNotes] = useState('');
@@ -96,7 +96,7 @@ export default function ExpenseForm() {
     if (match) setCatId(match.id);
   }
 
-  function onPickCategory(id: number) {
+  function onPickCategory(id: string) {
     catAutoPick.current = false;
     setCatId(id);
   }

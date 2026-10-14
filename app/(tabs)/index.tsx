@@ -38,7 +38,7 @@ export default function Home() {
     const merged: Recent[] = [
       ...allExpenses.map((row): Recent => ({ kind: 'expense', row })),
       ...allIncome.map((row): Recent => ({ kind: 'income', row })),
-    ].sort((a, b) => (a.row.date === b.row.date ? b.row.id - a.row.id : b.row.date.localeCompare(a.row.date)));
+    ].sort((a, b) => b.row.date.localeCompare(a.row.date));
     setRecent(merged.slice(0, 6));
   }, [from, to]);
 
