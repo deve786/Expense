@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 /** Newest first. Add a new entry here with every release that changes user-visible behaviour. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.11',
+    date: '2026-10-14',
+    highlights: [
+      'Tag person / For user: tag who a purchase was for with one tap',
+      'Saved people: remembered automatically so you never have to re-type',
+      'Search expenses by tagged person in History',
+      'AI Diagnostics & live log viewer in Settings',
+    ],
+  },
+  {
     version: '1.0.10',
     date: '2026-10-14',
     highlights: [

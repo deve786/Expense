@@ -49,6 +49,7 @@ export default function History() {
           row.note.toLowerCase().includes(needle) ||
           row.notes.toLowerCase().includes(needle) ||
           row.cat_name.toLowerCase().includes(needle) ||
+          ((row as ExpenseRow).user_tag?.toLowerCase().includes(needle) ?? false) ||
           row.method.toLowerCase().includes(needle) ||
           String(row.amount).includes(needle) ||
           row.date.includes(needle)

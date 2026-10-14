@@ -92,7 +92,9 @@ export function Button({ title, onPress, kind = 'primary', icon, disabled, style
   );
 }
 
-export function Chip({ label, active, onPress, color }: { label: string; active?: boolean; onPress?: () => void; color?: string }) {
+export function Chip({ label, active, onPress, color, icon }: {
+  label: string; active?: boolean; onPress?: () => void; color?: string; icon?: keyof typeof Ionicons.glyphMap;
+}) {
   const { c } = useTheme();
   return (
     <Pressable
@@ -106,6 +108,7 @@ export function Chip({ label, active, onPress, color }: { label: string; active?
         flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1,
       })}
     >
+      {icon ? <Ionicons name={icon} size={14} color={active ? c.inkText : c.sub} /> : null}
       {color ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: active ? c.inkText : color }} /> : null}
       <Text style={{ color: active ? c.inkText : c.text, fontSize: 13, fontWeight: '500' }}>{label}</Text>
     </Pressable>

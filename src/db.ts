@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { todayStr, ymKey } from './dates';
 
 export type Category = { id: string; name: string; icon: string; color: string };
+export type TaggedUser = { id: string; name: string };
 export type Expense = {
   id: string;
   amount: number;
@@ -11,6 +12,7 @@ export type Expense = {
   note: string;
   notes: string;
   method: string;
+  user_tag?: string;
   recurring_id: string | null;
 };
 export type ExpenseRow = Expense & { cat_name: string; cat_icon: string; cat_color: string; item_count: number };
@@ -118,12 +120,21 @@ const SCHEMA_SQL = `
     note TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     method TEXT NOT NULL DEFAULT 'Cash',
+    user_tag TEXT NOT NULL DEFAULT '',
     recurring_id TEXT,
     updated_at TEXT NOT NULL,
     dirty INTEGER NOT NULL DEFAULT 1,
     deleted INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+  CREATE TABLE IF NOT EXISTS tagged_users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 1,
+    deleted INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_tagged_users_name ON tagged_users(name) WHERE deleted = 0;
   CREATE TABLE IF NOT EXISTS expense_items (
     id TEXT PRIMARY KEY,
     expense_id TEXT NOT NULL,
@@ -291,7 +302,18 @@ async function init() {
   if (!migrated) await db.execAsync(SCHEMA_SQL); // fresh install, or already migrated: ensure tables exist
 
   await addColumnIfMissing(db, 'expenses', 'notes', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, 'expenses', 'user_tag', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing(db, 'expense_items', 'quantity', "REAL NOT NULL DEFAULT 1");
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS tagged_users (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      dirty INTEGER NOT NULL DEFAULT 1,
+      deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tagged_users_name ON tagged_users(name) WHERE deleted = 0;
+  `);
 
   const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM categories');
   if (!row || row.c === 0) {
@@ -432,19 +454,51 @@ export async function getExpense(id: string) {
 export async function saveExpense(e: Omit<Expense, 'id' | 'recurring_id'> & { id?: string }): Promise<string> {
   const db = await getDb();
   const now = nowIso();
+  const userTag = (e.user_tag ?? '').trim();
+  if (userTag) {
+    await findOrCreateTaggedUser(userTag);
+  }
   if (e.id) {
     await db.runAsync(
-      'UPDATE expenses SET amount=?, category_id=?, date=?, note=?, notes=?, method=?, updated_at=?, dirty=1 WHERE id=?',
-      e.amount, e.category_id, e.date, e.note, e.notes, e.method, now, e.id
+      'UPDATE expenses SET amount=?, category_id=?, date=?, note=?, notes=?, method=?, user_tag=?, updated_at=?, dirty=1 WHERE id=?',
+      e.amount, e.category_id, e.date, e.note, e.notes, e.method, userTag, now, e.id
     );
     return e.id;
   }
   const id = uuid();
   await db.runAsync(
-    'INSERT INTO expenses (id, amount, category_id, date, note, notes, method, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    id, e.amount, e.category_id, e.date, e.note, e.notes, e.method, now
+    'INSERT INTO expenses (id, amount, category_id, date, note, notes, method, user_tag, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    id, e.amount, e.category_id, e.date, e.note, e.notes, e.method, userTag, now
   );
   return id;
+}
+
+export async function listTaggedUsers(): Promise<TaggedUser[]> {
+  const db = await getDb();
+  return db.getAllAsync<TaggedUser>(
+    'SELECT id, name FROM tagged_users WHERE deleted = 0 ORDER BY LOWER(name) ASC'
+  );
+}
+
+export async function findOrCreateTaggedUser(name: string): Promise<string> {
+  const db = await getDb();
+  const n = name.trim();
+  if (!n) return '';
+  const existing = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM tagged_users WHERE LOWER(name) = LOWER(?) AND deleted = 0', n
+  );
+  if (existing) return existing.id;
+  const id = uuid();
+  await db.runAsync(
+    'INSERT INTO tagged_users (id, name, updated_at) VALUES (?, ?, ?)',
+    id, n, nowIso()
+  );
+  return id;
+}
+
+export async function deleteTaggedUser(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE tagged_users SET deleted = 1, updated_at = ?, dirty = 1 WHERE id = ?', nowIso(), id);
 }
 
 export async function deleteExpense(id: string) {

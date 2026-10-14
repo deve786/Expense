@@ -6,8 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { guessCategoryWithAI } from '@/ai/categorize';
 import {
-  METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, listExpenseItems,
-  saveExpense, saveExpenseItems, type Category, type ExpenseItem as ExpenseItemRow,
+  METHODS, deleteExpense, findOrCreateCategory, findOrCreateTaggedUser, getExpense,
+  listCategories, listExpenseItems, listTaggedUsers, saveExpense, saveExpenseItems,
+  type Category, type ExpenseItem as ExpenseItemRow, type TaggedUser,
 } from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
 import { numerals, radius, useTheme } from '@/theme';
@@ -56,6 +57,10 @@ export default function ExpenseForm() {
   const [note, setNote] = useState('');
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState<string>('UPI');
+  const [userTag, setUserTag] = useState('');
+  const [savedUsers, setSavedUsers] = useState<TaggedUser[]>([]);
+  const [showNewUserInput, setShowNewUserInput] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
   const [aiSuggestedCat, setAiSuggestedCat] = useState(false); // true when customCat was filled by AI
@@ -81,8 +86,9 @@ export default function ExpenseForm() {
 
   useEffect(() => {
     (async () => {
-      const cs = await listCategories();
+      const [cs, users] = await Promise.all([listCategories(), listTaggedUsers()]);
       setCats(cs);
+      setSavedUsers(users);
       if (editId) {
         const e = await getExpense(editId);
         if (e) {
@@ -92,6 +98,7 @@ export default function ExpenseForm() {
           setNote(e.note);
           setNotes(e.notes);
           setMethod(e.method);
+          if (e.user_tag) setUserTag(e.user_tag);
         }
         const existing = await listExpenseItems(editId);
         setViewItems(existing);
@@ -254,9 +261,14 @@ export default function ExpenseForm() {
     const isOtherNow = catsRef.current.find((k) => k.id === finalCategoryId)?.name === 'Other';
     const custom = isOtherNow ? customCat.trim() : '';
     const finalCatId = custom ? await findOrCreateCategory(custom) : finalCategoryId;
+    const finalUserTag = (userTag || newUserName).trim();
+    if (finalUserTag) {
+      await findOrCreateTaggedUser(finalUserTag);
+    }
     const newId = await saveExpense({
       id: editId, amount: round2(value), category_id: finalCatId, date,
       note: note.trim(), notes: notes.trim(), method,
+      user_tag: finalUserTag,
     });
     const cleanItems = hasItems
       ? items
@@ -323,6 +335,15 @@ export default function ExpenseForm() {
             <T size={13.5} sub>Date</T>
             <T size={13.5}>{prettyDate(date)}</T>
           </Row>
+          {userTag.trim().length > 0 && (
+            <Row style={{ justifyContent: 'space-between', paddingVertical: 6 }}>
+              <T size={13.5} sub>For user</T>
+              <Row style={{ gap: 6, alignItems: 'center' }}>
+                <Ionicons name="person-circle-outline" size={16} color={c.sub} />
+                <T size={13.5} weight="600">{userTag}</T>
+              </Row>
+            </Row>
+          )}
           <Row style={{ justifyContent: 'space-between', paddingVertical: 6 }}>
             <T size={13.5} sub>Paid with</T>
             <T size={13.5}>{method}</T>
@@ -466,6 +487,61 @@ export default function ExpenseForm() {
               maxLength={30}
               containerStyle={{ marginTop: 12 }}
             />
+          )}
+
+          <T size={13} sub style={{ marginTop: 16, marginBottom: 9 }}>For user / Tag person (optional)</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+            {savedUsers.map((u) => (
+              <Chip
+                key={u.id}
+                label={u.name}
+                icon="person-outline"
+                active={userTag.toLowerCase() === u.name.toLowerCase()}
+                onPress={() => setUserTag(userTag.toLowerCase() === u.name.toLowerCase() ? '' : u.name)}
+              />
+            ))}
+            {!showNewUserInput && (
+              <Chip
+                label="+ Add person"
+                active={false}
+                onPress={() => setShowNewUserInput(true)}
+              />
+            )}
+          </View>
+
+          {showNewUserInput && (
+            <Row style={{ gap: 8, marginTop: 4, marginBottom: 8, alignItems: 'center' }}>
+              <Field
+                value={newUserName}
+                onChangeText={setNewUserName}
+                placeholder="Person name (e.g. Rahul, Mom)"
+                containerStyle={{ flex: 1, marginBottom: 0 }}
+                autoFocus
+              />
+              <Button
+                title="Add"
+                kind="ghost"
+                disabled={!newUserName.trim()}
+                onPress={async () => {
+                  const trimmed = newUserName.trim();
+                  if (!trimmed) return;
+                  await findOrCreateTaggedUser(trimmed);
+                  setUserTag(trimmed);
+                  if (!savedUsers.some((u) => u.name.toLowerCase() === trimmed.toLowerCase())) {
+                    setSavedUsers((prev) => [...prev, { id: trimmed, name: trimmed }].sort((a, b) => a.name.localeCompare(b.name)));
+                  }
+                  setNewUserName('');
+                  setShowNewUserInput(false);
+                }}
+              />
+              <Pressable
+                hitSlop={10}
+                onPress={() => { setShowNewUserInput(false); setNewUserName(''); }}
+                accessibilityLabel="Cancel add person"
+              >
+                <Ionicons name="close-circle" size={22} color={c.faint} />
+              </Pressable>
+            </Row>
           )}
 
           <T size={13} sub style={{ marginTop: 16, marginBottom: 9 }}>Date</T>
