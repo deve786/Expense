@@ -97,7 +97,10 @@ export default function ExpenseForm() {
         if (existing.length) {
           setItems(existing.map((it) => ({ name: it.name, qty: String(it.quantity), amount: String(it.amount) })));
         }
-        catAutoPick.current = false;
+        // Left at its default (true): opening an existing expense doesn't
+        // touch the title via onChangeNote at all (setNote above is direct),
+        // so auto-pick can't fire on load — but it should still resume if
+        // the user then edits the title themselves.
       } else if (cs.length) {
         setCatId(cs[0].id);
       }
