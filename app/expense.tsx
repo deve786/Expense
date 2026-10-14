@@ -4,10 +4,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, saveExpense, type Category } from '@/db';
+import {
+  METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, listExpenseItems,
+  saveExpense, saveExpenseItems, type Category,
+} from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
 import { numerals, radius, useTheme } from '@/theme';
 import { Button, Chip, Field, Header, Row, Screen, T } from '@/ui';
+
+type DraftItem = { name: string; amount: string };
+
+const parseAmt = (s: string) => parseFloat(s.replace(/,/g, ''));
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function ExpenseForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -17,6 +25,7 @@ export default function ExpenseForm() {
 
   const [cats, setCats] = useState<Category[]>([]);
   const [amount, setAmount] = useState('');
+  const [items, setItems] = useState<DraftItem[]>([]);
   const [catId, setCatId] = useState<number | null>(null);
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState('');
@@ -37,21 +46,49 @@ export default function ExpenseForm() {
           setNote(e.note);
           setMethod(e.method);
         }
+        const existing = await listExpenseItems(editId);
+        if (existing.length) setItems(existing.map((it) => ({ name: it.name, amount: String(it.amount) })));
       } else if (cs.length) {
         setCatId(cs[0].id);
       }
     })();
   }, [editId]);
 
-  const value = parseFloat(amount.replace(/,/g, ''));
+  const hasItems = items.length > 0;
+  const itemsTotal = items.reduce((s, it) => s + (parseAmt(it.amount) || 0), 0);
+  const manualValue = parseAmt(amount);
+  const value = hasItems ? itemsTotal : manualValue;
+  const itemsValid = !hasItems || items.every((it) => (parseAmt(it.amount) || 0) > 0);
   const isOther = cats.find((k) => k.id === catId)?.name === 'Other';
-  const valid = !isNaN(value) && value > 0 && catId !== null;
+  const valid = !isNaN(value) && value > 0 && catId !== null && itemsValid;
+
+  function startItems() {
+    const seed = !isNaN(manualValue) && manualValue > 0 ? amount : '';
+    setItems([{ name: '', amount: seed }, { name: '', amount: '' }]);
+  }
+  function clearItems() {
+    if (itemsTotal > 0) setAmount(String(itemsTotal));
+    setItems([]);
+  }
+  function addItem() {
+    setItems((prev) => [...prev, { name: '', amount: '' }]);
+  }
+  function updateItem(i: number, patch: Partial<DraftItem>) {
+    setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  }
+  function removeItem(i: number) {
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
   async function onSave() {
     if (!valid || catId === null) return;
     const custom = isOther ? customCat.trim() : '';
     const finalCatId = custom ? await findOrCreateCategory(custom) : catId;
-    await saveExpense({ id: editId, amount: Math.round(value * 100) / 100, category_id: finalCatId, date, note: note.trim(), method });
+    const newId = await saveExpense({ id: editId, amount: round2(value), category_id: finalCatId, date, note: note.trim(), method });
+    const cleanItems = hasItems
+      ? items.map((it) => ({ name: it.name.trim(), amount: round2(parseAmt(it.amount) || 0) })).filter((it) => it.amount > 0)
+      : [];
+    await saveExpenseItems(newId, cleanItems);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     router.back();
   }
@@ -64,27 +101,78 @@ export default function ExpenseForm() {
     ]);
   }
 
+  const itemInputStyle = {
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: radius.md,
+    paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, color: c.text,
+  };
+
   return (
     <Screen edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
           <Header title={editId ? 'Edit expense' : 'New expense'} onClose={() => router.back()} />
 
-          <Row style={{ alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 22 }}>
+          <Row style={{ alignItems: 'center', gap: 6, marginTop: 6, marginBottom: hasItems ? 2 : 22 }}>
             <T size={34} weight="600" sub>{symbol}</T>
-            <TextInput
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="0"
-              placeholderTextColor={c.faint}
-              keyboardType="decimal-pad"
-              autoFocus={!editId}
-              style={[{
-                flex: 1, fontSize: 44, fontWeight: '700', color: c.text,
-                padding: 0, letterSpacing: -1.2,
-              }, numerals]}
-            />
+            {hasItems ? (
+              <T size={44} weight="700" tabular style={{ flex: 1, letterSpacing: -1.2 }}>
+                {itemsTotal % 1 === 0 ? itemsTotal : itemsTotal.toFixed(2)}
+              </T>
+            ) : (
+              <TextInput
+                value={amount}
+                onChangeText={setAmount}
+                placeholder="0"
+                placeholderTextColor={c.faint}
+                keyboardType="decimal-pad"
+                autoFocus={!editId}
+                style={[{
+                  flex: 1, fontSize: 44, fontWeight: '700', color: c.text,
+                  padding: 0, letterSpacing: -1.2,
+                }, numerals]}
+              />
+            )}
           </Row>
+
+          {hasItems ? (
+            <View style={{ marginBottom: 20 }}>
+              <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+                <T size={13} sub>{items.length} item{items.length === 1 ? '' : 's'}</T>
+                <T size={13} sub onPress={clearItems}>Clear</T>
+              </Row>
+              {items.map((it, i) => (
+                <Row key={i} style={{ gap: 8, marginBottom: 8 }}>
+                  <TextInput
+                    value={it.name}
+                    onChangeText={(t) => updateItem(i, { name: t })}
+                    placeholder={`Item ${i + 1}`}
+                    placeholderTextColor={c.faint}
+                    style={[itemInputStyle, { flex: 1 }]}
+                  />
+                  <TextInput
+                    value={it.amount}
+                    onChangeText={(t) => updateItem(i, { amount: t })}
+                    placeholder="0"
+                    placeholderTextColor={c.faint}
+                    keyboardType="decimal-pad"
+                    style={[itemInputStyle, numerals, { width: 92, textAlign: 'right' }]}
+                  />
+                  <Pressable onPress={() => removeItem(i)} hitSlop={10} accessibilityLabel={`Remove item ${i + 1}`}>
+                    <Ionicons name="close-circle" size={22} color={c.faint} />
+                  </Pressable>
+                </Row>
+              ))}
+              <Pressable onPress={addItem} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Ionicons name="add-circle-outline" size={16} color={c.sub} />
+                <T size={13.5} sub>Add item</T>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={startItems} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 22 }}>
+              <Ionicons name="add-circle-outline" size={16} color={c.sub} />
+              <T size={13.5} sub>Split into items</T>
+            </Pressable>
+          )}
 
           <T size={13} sub style={{ marginBottom: 9 }}>Category</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -127,7 +215,7 @@ export default function ExpenseForm() {
             />
           )}
 
-          <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="e.g. Lunch with team" />
+          <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder={hasItems ? 'e.g. Walmart run' : 'e.g. Lunch with team'} />
 
           <T size={13} sub style={{ marginBottom: 9 }}>Paid with</T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>

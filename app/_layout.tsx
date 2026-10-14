@@ -5,15 +5,17 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from '@/theme';
 import { getDb } from '@/db';
-import { checkForOtaUpdate } from '@/ota';
+import { UpdateBanner } from '@/components/UpdateBanner';
+import { useAutoUpdate } from '@/useAutoUpdate';
 
 function Shell() {
   const { c, isDark } = useTheme();
   const [ready, setReady] = useState(false);
 
+  useAutoUpdate();
+
   useEffect(() => {
     getDb().then(() => setReady(true));
-    checkForOtaUpdate();
   }, []);
 
   return (
@@ -32,6 +34,7 @@ function Shell() {
           <ActivityIndicator color={c.faint} />
         </View>
       )}
+      <UpdateBanner />
     </>
   );
 }

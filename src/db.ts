@@ -11,7 +11,8 @@ export type Expense = {
   method: string;
   recurring_id: number | null;
 };
-export type ExpenseRow = Expense & { cat_name: string; cat_icon: string; cat_color: string };
+export type ExpenseRow = Expense & { cat_name: string; cat_icon: string; cat_color: string; item_count: number };
+export type ExpenseItem = { id: number; expense_id: number; name: string; amount: number };
 export type Recurring = {
   id: number;
   amount: number;
@@ -71,6 +72,13 @@ async function init() {
       recurring_id INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+    CREATE TABLE IF NOT EXISTS expense_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      expense_id INTEGER NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      amount REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_expense_items_expense ON expense_items(expense_id);
     CREATE TABLE IF NOT EXISTS recurring (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       amount REAL NOT NULL,
@@ -157,7 +165,8 @@ export async function deleteCategory(id: number) {
 
 // ---------- Expenses ----------
 const EXPENSE_SELECT = `
-  SELECT e.*, c.name AS cat_name, c.icon AS cat_icon, c.color AS cat_color
+  SELECT e.*, c.name AS cat_name, c.icon AS cat_icon, c.color AS cat_color,
+    (SELECT COUNT(*) FROM expense_items WHERE expense_id = e.id) AS item_count
   FROM expenses e JOIN categories c ON c.id = e.category_id`;
 
 export async function listExpenses(from?: string, to?: string) {
@@ -175,24 +184,42 @@ export async function getExpense(id: number) {
   return db.getFirstAsync<Expense>('SELECT * FROM expenses WHERE id = ?', id);
 }
 
-export async function saveExpense(e: Omit<Expense, 'id' | 'recurring_id'> & { id?: number }) {
+/** Returns the expense id, so the caller can attach line items to a new row. */
+export async function saveExpense(e: Omit<Expense, 'id' | 'recurring_id'> & { id?: number }): Promise<number> {
   const db = await getDb();
   if (e.id) {
     await db.runAsync(
       'UPDATE expenses SET amount=?, category_id=?, date=?, note=?, method=? WHERE id=?',
       e.amount, e.category_id, e.date, e.note, e.method, e.id
     );
-  } else {
-    await db.runAsync(
-      'INSERT INTO expenses (amount, category_id, date, note, method) VALUES (?, ?, ?, ?, ?)',
-      e.amount, e.category_id, e.date, e.note, e.method
-    );
+    return e.id;
   }
+  const res = await db.runAsync(
+    'INSERT INTO expenses (amount, category_id, date, note, method) VALUES (?, ?, ?, ?, ?)',
+    e.amount, e.category_id, e.date, e.note, e.method
+  );
+  return res.lastInsertRowId;
 }
 
 export async function deleteExpense(id: number) {
   const db = await getDb();
+  await db.runAsync('DELETE FROM expense_items WHERE expense_id = ?', id);
   await db.runAsync('DELETE FROM expenses WHERE id = ?', id);
+}
+
+// ---------- Expense items (itemised breakdown of one expense) ----------
+export async function listExpenseItems(expenseId: number) {
+  const db = await getDb();
+  return db.getAllAsync<ExpenseItem>('SELECT * FROM expense_items WHERE expense_id = ? ORDER BY id', expenseId);
+}
+
+/** Replaces the full item list for an expense — simplest correct behaviour for a small, user-edited list. */
+export async function saveExpenseItems(expenseId: number, items: { name: string; amount: number }[]) {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM expense_items WHERE expense_id = ?', expenseId);
+  for (const it of items) {
+    await db.runAsync('INSERT INTO expense_items (expense_id, name, amount) VALUES (?, ?, ?)', expenseId, it.name.trim(), it.amount);
+  }
 }
 
 // ---------- Recurring ----------

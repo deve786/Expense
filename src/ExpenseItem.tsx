@@ -9,7 +9,13 @@ import { IconDot, Money, Row, T } from './ui';
 export function ExpenseItem({ e, showDate = true }: { e: ExpenseRow; showDate?: boolean }) {
   const { c } = useTheme();
   const router = useRouter();
-  const meta = [e.cat_name, e.method, showDate ? prettyDate(e.date) : null, e.recurring_id ? 'Repeats' : null]
+  const meta = [
+    e.cat_name,
+    e.method,
+    showDate ? prettyDate(e.date) : null,
+    e.recurring_id ? 'Repeats' : null,
+    e.item_count > 1 ? `${e.item_count} items` : null,
+  ]
     .filter(Boolean)
     .join('  ·  ');
 

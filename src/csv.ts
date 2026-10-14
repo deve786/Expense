@@ -1,6 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { listExpenses } from './db';
+import { listExpenseItems, listExpenses } from './db';
 
 const esc = (v: string | number) => {
   const s = String(v);
@@ -9,9 +9,11 @@ const esc = (v: string | number) => {
 
 export async function exportCsv() {
   const rows = await listExpenses();
-  const lines = ['Date,Amount,Category,Payment method,Note,Recurring'];
+  const lines = ['Date,Amount,Category,Payment method,Note,Items,Recurring'];
   for (const r of rows) {
-    lines.push([r.date, r.amount, r.cat_name, r.method, r.note, r.recurring_id ? 'yes' : 'no'].map(esc).join(','));
+    const items = r.item_count > 0 ? await listExpenseItems(r.id) : [];
+    const itemSummary = items.map((it) => `${it.name || 'Item'}: ${it.amount}`).join('; ');
+    lines.push([r.date, r.amount, r.cat_name, r.method, r.note, itemSummary, r.recurring_id ? 'yes' : 'no'].map(esc).join(','));
   }
   const file = new File(Paths.cache, `spendly-expenses-${new Date().toISOString().slice(0, 10)}.csv`);
   file.create({ overwrite: true });

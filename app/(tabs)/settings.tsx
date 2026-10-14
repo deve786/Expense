@@ -106,11 +106,15 @@ export default function Settings() {
           <T size={13.5} sub>Build</T>
           <T size={13.5} tabular>{String(info.updateId).slice(0, 8)}</T>
         </Row>
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 4 }}>
+          <T size={13.5} sub>OTA update</T>
+          <T size={13.5} tabular>#{info.otaBuild}</T>
+        </Row>
         <Button
           title="Check for updates"
           kind="ghost"
           icon="cloud-download-outline"
-          onPress={() => checkForOtaUpdate(true)}
+          onPress={() => checkForOtaUpdate()}
           style={{ marginTop: 14 }}
         />
 

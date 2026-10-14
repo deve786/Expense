@@ -63,7 +63,7 @@ export default function Chat() {
           <View style={{ marginHorizontal: 20, marginTop: 10, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: c.line, backgroundColor: c.card }}>
             <T size={14} weight="600">Not connected yet</T>
             <T size={13.5} sub style={{ marginTop: 4, lineHeight: 19 }}>
-              Deploy the proxy in /worker, then put its URL in app.json under expo.extra.chatProxyUrl.
+              Add a free Gemini key as EXPO_PUBLIC_GEMINI_API_KEY in .env, then restart with npx expo start --clear.
             </T>
           </View>
         )}
