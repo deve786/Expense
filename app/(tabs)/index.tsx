@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { listExpenses, listIncome, refreshRecurring, type ExpenseRow, type IncomeRow } from '@/db';
 import { monthName, monthRange, todayStr, addDays } from '@/dates';
@@ -132,16 +133,18 @@ export default function Home() {
           </>
         )}
 
-        <Row style={{ gap: 10, marginTop: 24 }}>
-          <Button title="Add expense" icon="add" onPress={() => router.push('/expense')} style={{ flex: 1 }} />
-          <Button
-            title="Add income"
-            icon="add"
-            kind="ghost"
-            onPress={() => router.push('/income')}
-            style={{ flex: 1, borderColor: c.good }}
-          />
-        </Row>
+        <Button title="Add expense" icon="add" onPress={() => router.push('/expense')} style={{ marginTop: 24 }} />
+        <Pressable
+          onPress={() => router.push('/income')}
+          hitSlop={8}
+          style={({ pressed }) => ({
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+            marginTop: 14, opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="add-circle-outline" size={16} color={c.good} />
+          <T size={13.5} weight="600" style={{ color: c.good }}>Add income</T>
+        </Pressable>
 
         <Section title="Recent" right={<T size={14} sub onPress={() => router.push('/history')}>See all</T>} />
         {recent.length === 0 ? (
