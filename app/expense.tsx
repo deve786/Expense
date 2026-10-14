@@ -29,6 +29,7 @@ const CATEGORY_KEYWORDS: [string, string[]][] = [
   ['Rent', ['rent']],
   ['Health', ['doctor', 'medicine', 'pharmacy', 'hospital', 'clinic', 'medical']],
   ['Entertainment', ['movie', 'netflix', 'spotify', 'cinema', 'concert', 'game']],
+  ['Personal Care', ['barber', 'barbershop', 'salon', 'haircut', 'spa', 'grooming', 'parlour', 'parlor']],
 ];
 
 function guessCategoryName(title: string): string | null {
@@ -118,10 +119,23 @@ export default function ExpenseForm() {
     aiDebounce.current = setTimeout(() => {
       setAiGuessing(true);
       guessCategoryWithAI(t, cats.map((k) => k.name))
-        .then((name) => {
+        .then(async (name) => {
           if (seq !== aiSeq.current || !catAutoPick.current || !name) return;
-          const aiMatch = cats.find((k) => k.name === name);
-          if (aiMatch) setCatId(aiMatch.id);
+          if (name.toLowerCase() === 'other') return;
+
+          const existing = cats.find((k) => k.name.toLowerCase() === name.toLowerCase());
+          if (existing) {
+            setCatId(existing.id);
+            return;
+          }
+
+          // The AI suggested a category that doesn't exist yet — create it,
+          // so this and future titles like it land somewhere specific
+          // instead of defaulting to Other.
+          const newId = await findOrCreateCategory(name);
+          if (seq !== aiSeq.current || !catAutoPick.current) return;
+          setCats(await listCategories());
+          setCatId(newId);
         })
         .finally(() => {
           if (seq === aiSeq.current) setAiGuessing(false);

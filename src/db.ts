@@ -61,6 +61,7 @@ const DEFAULT_CATEGORIES: Omit<Category, 'id'>[] = [
   { name: 'Rent', icon: 'home-outline', color: '#2E9465' },
   { name: 'Health', icon: 'medkit-outline', color: '#B0479B' },
   { name: 'Entertainment', icon: 'film-outline', color: '#7B8B1E' },
+  { name: 'Personal Care', icon: 'cut-outline', color: '#C45B7A' },
   { name: 'Other', icon: 'ellipsis-horizontal-circle-outline', color: '#0D8FAF' },
 ];
 
@@ -306,6 +307,21 @@ async function init() {
         "UPDATE categories SET color = ?, updated_at = ?, dirty = 1 WHERE name = ? AND color = ? AND deleted = 0",
         c.color, nowIso(), c.name, LEGACY_COLORS[c.name]
       );
+    }
+    // A later app update can add a new default category (e.g. "Personal Care").
+    // Existing installs never ran the fresh-install seed above, so backfill
+    // whichever ones they don't already have — by name, so a category the
+    // user already made with that name is left alone.
+    for (const c of DEFAULT_CATEGORIES) {
+      const existing = await db.getFirstAsync<{ id: string }>(
+        'SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND deleted = 0', c.name
+      );
+      if (!existing) {
+        await db.runAsync(
+          'INSERT INTO categories (id, name, icon, color, updated_at) VALUES (?, ?, ?, ?, ?)',
+          uuid(), c.name, c.icon, c.color, nowIso()
+        );
+      }
     }
   }
   const incomeRow = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM income_categories');
