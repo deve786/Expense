@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 /** Newest first. Add a new entry here with every release that changes user-visible behaviour. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.13',
+    date: '2026-10-14',
+    highlights: [
+      'Split items strictly take their names from the expense title',
+      'No random or hallucinated item names',
+      'Splitting into items immediately seeds with the expense title',
+    ],
+  },
+  {
     version: '1.0.12',
     date: '2026-10-14',
     highlights: [

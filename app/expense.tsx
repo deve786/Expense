@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -128,28 +128,29 @@ export default function ExpenseForm() {
   }, []);
 
   async function runAiItemNaming(titleText: string, currentItems: DraftItem[]) {
-    if (!titleText.trim() && currentItems.every((it) => !it.name.trim())) return;
+    const trimmedTitle = titleText.trim();
+    if (!trimmedTitle) return; // Do not run without title — no random items!
     setAiItemsGuessing(true);
     try {
       const selectedCat = catsRef.current.find((k) => k.id === catIdRef.current)?.name;
       const names = await guessItemNamesWithAI({
-        title: titleText,
+        title: trimmedTitle,
         category: selectedCat,
         itemCount: currentItems.length,
         existingNames: currentItems.map((it) => it.name),
       });
       if (names && names.length > 0) {
-        // If user started split items with 1 empty row and AI detected multiple items in title,
+        // If user started split items with 1 row and AI detected multiple items in title,
         // expand the items list to match
-        if (currentItems.length === 1 && !currentItems[0].name.trim() && names.length > 1) {
+        if (currentItems.length === 1 && names.length > 1) {
           const firstAmount = currentItems[0].amount;
           setItems(names.map((name, i) => ({ name, qty: '1', amount: i === 0 ? firstAmount : '' })));
         } else {
-          // If user already filled any name then replace that
+          // Replace any existing names with the names derived from title
           setItems((prev) =>
             prev.map((it, idx) => {
-              const aiName = names[idx];
-              return aiName ? { ...it, name: aiName } : it;
+              const aiName = names[idx] || trimmedTitle;
+              return { ...it, name: aiName };
             })
           );
         }
@@ -272,10 +273,11 @@ export default function ExpenseForm() {
     // "Add item" grows the list from here, so Save isn't blocked by a second,
     // still-empty row the user never asked for.
     const seed = !isNaN(manualValue) && manualValue > 0 ? amount : '';
-    const initialItems = [{ name: '', qty: '1', amount: seed }];
+    const trimmedTitle = note.trim();
+    const initialItems = [{ name: trimmedTitle, qty: '1', amount: seed }];
     setItems(initialItems);
-    if (note.trim()) {
-      runAiItemNaming(note, initialItems);
+    if (trimmedTitle) {
+      runAiItemNaming(trimmedTitle, initialItems);
     }
   }
   function clearItems() {
@@ -467,7 +469,13 @@ export default function ExpenseForm() {
                 <Row style={{ gap: 14, alignItems: 'center' }}>
                   <Pressable
                     hitSlop={8}
-                    onPress={() => runAiItemNaming(note, items)}
+                    onPress={() => {
+                      if (!note.trim()) {
+                        Alert.alert('Title needed', 'Enter an expense title first so AI can name the items from it.');
+                        return;
+                      }
+                      runAiItemNaming(note, items);
+                    }}
                     disabled={aiItemsGuessing}
                     accessibilityLabel="Auto-name items with AI"
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}

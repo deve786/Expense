@@ -9,36 +9,34 @@ export interface ItemGuessOptions {
 }
 
 /**
- * Uses Gemini to generate or extract clean, appropriate item names for an expense split into items.
- * If the user has already filled any item name, the AI's generated names replace them.
+ * Uses Gemini to extract clean item names strictly based on the expense title.
+ * NEVER invents or hallucinates random items.
+ * If the user has already filled any item name, they are replaced with names directly from the title.
  */
 export async function guessItemNamesWithAI(options: ItemGuessOptions): Promise<string[] | null> {
   const title = options.title.trim();
-  const existing = (options.existingNames || []).map((n) => n.trim()).filter(Boolean);
-
-  if (!hasApiKey()) return null;
-  if (!title && existing.length === 0) return null;
+  if (!hasApiKey() || !title) return null;
 
   const count = Math.max(1, options.itemCount);
-  const prompt = `Expense title: "${title || 'Expense'}"
-Category: ${options.category || 'General'}
-Items count requested: ${count}
+  const prompt = `Expense title: "${title}"
+Number of items requested: ${count}
 Existing item names: ${JSON.stringify(options.existingNames || [])}
 
-Task:
-Generate clean, concise item names (1-3 words each, Title Case, e.g. "Pepperoni Pizza", "Garlic Bread", "Movie Ticket", "Coffee").
-1. If the title lists or implies specific items (e.g. "burger and fries" or "milk, eggs, bread"), extract those item names.
-2. If existing names were already filled by the user (even if rough or partial), replace them with proper, polished item names matching the context.
-3. If title is a general store or category (e.g. "Starbucks", "Grocery run", "Pharmacy"), invent realistic item names matching the title and category.
+Instructions:
+Extract and name the split expense items strictly based on the expense title "${title}".
+1. If the expense title lists or contains multiple items (e.g. "Burger and Fries", "Milk, Bread, Eggs", "Movie ticket and popcorn"), extract those specific items from the title.
+2. If the expense title represents a single purchase (e.g. "Coffee", "Dinner at Taj", "Nike Shoes", "Groceries"), use the title of the expense itself (Title Case, cleaned up) for the item name.
+3. If the user already filled in any item names, replace them with the items derived from the title "${title}".
+4. CRITICAL RULE: DO NOT INVENT OR HALLUCINATE RANDOM ITEMS. Every single item name must be derived directly from the title "${title}". Never make up items that were not specified.
 
-Return ONLY a raw JSON array of strings containing the item names (at least ${count} items), like:
-["Item Name 1", "Item Name 2"]
+Return ONLY a raw JSON array of strings containing the item names, like:
+["Item Name 1"]
 No markdown formatting, no backticks, no other text.`;
 
   try {
     const raw = await requestText({
       model: ASK_MODEL,
-      system: 'You are an expense itemizer. Return only a raw JSON array of strings, nothing else.',
+      system: 'You are an expense itemizer. Return only a raw JSON array of strings derived strictly from the expense title. Never invent random items.',
       user: prompt,
       retries: 0,
     });
@@ -55,7 +53,7 @@ No markdown formatting, no backticks, no other text.`;
 
     addAiLog({
       type: 'categorize',
-      title: `Split Items: "${title || existing.join(', ')}"`,
+      title: `Split Items: "${title}"`,
       status: 'success',
       result: names.join(', '),
       model: ASK_MODEL,
