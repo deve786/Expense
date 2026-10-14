@@ -113,12 +113,24 @@ export default function ExpenseForm() {
     };
   }, []);
 
+  function fallBackToOther(seq: number) {
+    if (seq !== aiSeq.current || !catAutoPick.current) return;
+    const other = catsRef.current.find((k) => k.name === 'Other');
+    if (other) setCatId(other.id);
+  }
+
   async function runAiGuess(t: string, seq: number) {
     setAiGuessing(true);
     try {
       const name = await guessCategoryWithAI(t, catsRef.current.map((k) => k.name));
-      if (seq !== aiSeq.current || !catAutoPick.current || !name) return;
-      if (name.toLowerCase() === 'other') return;
+      if (seq !== aiSeq.current || !catAutoPick.current) return;
+      if (!name || name.toLowerCase() === 'other') {
+        // Nothing fit, by keyword or by AI — land on the real "Other"
+        // category (not whatever was left selected before), so the "name a
+        // new category" field reliably appears and Save can act on it.
+        fallBackToOther(seq);
+        return;
+      }
 
       const existing = catsRef.current.find((k) => k.name.toLowerCase() === name.toLowerCase());
       if (existing) {
@@ -155,8 +167,11 @@ export default function ExpenseForm() {
     }
 
     // Either the keyword list said "Other", or it named a category that
-    // doesn't actually exist (e.g. a default the user removed) — ask the AI
-    // once typing pauses, rather than on every keystroke.
+    // doesn't actually exist (e.g. a default the user removed). Land on the
+    // real "Other" as a safe interim pick while the AI looks for something
+    // more specific, once typing pauses.
+    const other = cats.find((k) => k.name === 'Other');
+    if (other) setCatId(other.id);
     const seq = aiSeq.current;
     aiDebounce.current = setTimeout(() => {
       aiDebounce.current = null;
