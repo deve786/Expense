@@ -276,8 +276,14 @@ export function getDb() {
   return dbPromise;
 }
 
+/** Subscribe to writes (used by the sync engine to trigger a push shortly after a local change). */
+export function onDatabaseChange(listener: () => void): () => void {
+  const subscription = SQLite.addDatabaseChangeListener(() => listener());
+  return () => subscription.remove();
+}
+
 async function init() {
-  const db = await SQLite.openDatabaseAsync('spendly.db');
+  const db = await SQLite.openDatabaseAsync('spendly.db', { enableChangeListener: true });
   await db.execAsync('PRAGMA journal_mode = WAL;');
   const migrated = await migrateLegacyIdsIfNeeded(db);
   if (!migrated) await db.execAsync(SCHEMA_SQL); // fresh install, or already migrated: ensure tables exist

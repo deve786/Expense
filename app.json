@@ -3,7 +3,7 @@
     "name": "Spendly",
     "slug": "split",
     "scheme": "spendly",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -47,7 +47,7 @@
     "extra": {
       "chatProxyUrl": "",
       "chatAppToken": "",
-      "otaBuild": 10,
+      "otaBuild": 11,
       "router": {},
       "eas": {
         "projectId": "dd34ff19-2227-439d-9f62-fde5c55c50a9"

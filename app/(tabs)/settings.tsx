@@ -78,6 +78,7 @@ export default function Settings() {
 
         <Section title="Manage" />
         <Divider />
+        <NavRow label="Backup" icon="cloud-upload-outline" onPress={() => router.push('/account')} />
         <NavRow label="Categories" icon="pricetags-outline" onPress={() => router.push('/categories')} />
         <NavRow label="Recurring expenses" icon="repeat-outline" onPress={() => router.push('/recurring')} />
         <NavRow
@@ -119,7 +120,7 @@ export default function Settings() {
         />
 
         <T size={12.5} faint style={{ marginTop: 28, textAlign: 'center', lineHeight: 18 }}>
-          Spendly keeps every expense on this device.{'\n'}Nothing is uploaded anywhere.
+          Spendly keeps every expense on this device.{'\n'}Turn on Backup to also keep a copy in your account.
         </T>
         <View style={{ height: 8, backgroundColor: c.bg }} />
       </ScrollView>

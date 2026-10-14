@@ -25,22 +25,29 @@ export default function Home() {
   const month0 = Number(today.slice(5, 7)) - 1;
   const { from, to } = useMemo(() => monthRange(year, month0), [year, month0]);
 
+  const [lastMonthTotal, setLastMonthTotal] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     await refreshRecurring();
-    const [monthExpenses, monthIncome, allExpenses, allIncome] = await Promise.all([
+    const prevMonth0 = month0 === 0 ? 11 : month0 - 1;
+    const prevYear = month0 === 0 ? year - 1 : year;
+    const prevRange = monthRange(prevYear, prevMonth0);
+    const [monthExpenses, monthIncome, allExpenses, allIncome, prevExpenses] = await Promise.all([
       listExpenses(from, to),
       listIncome(from, to),
       listExpenses(),
       listIncome(),
+      listExpenses(prevRange.from, prevRange.to),
     ]);
     setRows(monthExpenses);
     setIncomeRows(monthIncome);
+    setLastMonthTotal(sum(prevExpenses));
     const merged: Recent[] = [
       ...allExpenses.map((row): Recent => ({ kind: 'expense', row })),
       ...allIncome.map((row): Recent => ({ kind: 'income', row })),
     ].sort((a, b) => b.row.date.localeCompare(a.row.date));
     setRecent(merged.slice(0, 6));
-  }, [from, to]);
+  }, [from, to, month0, year]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -52,6 +59,9 @@ export default function Home() {
   const top = byCategory(rows)[0];
   const pct = budget > 0 ? total / budget : 0;
   const tone = budgetTone(pct, c);
+  const vsLastMonth = lastMonthTotal !== null && lastMonthTotal > 0
+    ? Math.round(((total - lastMonthTotal) / lastMonthTotal) * 100)
+    : null;
 
   return (
     <Screen>
@@ -60,7 +70,14 @@ export default function Home() {
         <T size={48} weight="700" tabular style={{ marginTop: 2, letterSpacing: -1.6 }}>
           {fmtMoney(total, symbol)}
         </T>
-        <T size={14} sub style={{ marginTop: 1 }}>spent this month</T>
+        <Row style={{ marginTop: 1 }}>
+          <T size={14} sub>spent this month</T>
+          {vsLastMonth !== null && (
+            <T size={13} weight="600" style={{ color: vsLastMonth > 0 ? c.danger : c.good, marginLeft: 8 }}>
+              {vsLastMonth > 0 ? '↑' : vsLastMonth < 0 ? '↓' : ''} {Math.abs(vsLastMonth)}% vs last month
+            </T>
+          )}
+        </Row>
 
         {budget > 0 && (
           <View style={{ marginTop: 18 }}>

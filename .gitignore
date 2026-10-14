@@ -34,6 +34,13 @@ yarn-error.*
 .env
 .env*.local
 
+# locally installed agent skills (npx skills add) — regenerable, and .mcp.json
+# points at a personal Supabase project ref that shouldn't be shared as-is
+.agents/
+.claude/skills/
+.mcp.json
+skills-lock.json
+
 # typescript
 *.tsbuildinfo
 

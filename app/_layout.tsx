@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme } from '@/theme';
 import { getDb } from '@/db';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { useAutoUpdate } from '@/useAutoUpdate';
+import { useSync } from '@/sync/useSync';
 
 function Shell() {
   const { c, isDark } = useTheme();
@@ -14,6 +15,7 @@ function Shell() {
   const [bannerHeight, setBannerHeight] = useState(0);
 
   useAutoUpdate();
+  useSync();
 
   useEffect(() => {
     getDb().then(() => setReady(true));
@@ -31,6 +33,7 @@ function Shell() {
             <Stack.Screen name="income" options={{ presentation: 'modal' }} />
             <Stack.Screen name="recurring" options={{ presentation: 'modal' }} />
             <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="account" options={{ presentation: 'modal' }} />
           </Stack>
         ) : (
           // Painted in theme colours so launch doesn't flash white before the DB opens.
