@@ -1,46 +1,92 @@
 import React from 'react';
 import { Pressable, StyleProp, Text, TextInput, TextInputProps, View, ViewStyle, TextStyle } from 'react-native';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from './theme';
+import { numerals, radius, useTheme } from './theme';
+import { fmtMoney } from './stats';
 
-export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
-  const { c } = useTheme();
-  return (
-    <View style={[{ backgroundColor: c.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.line }, style]}>
-      {children}
-    </View>
-  );
-}
-
-export function T({ children, size = 15, weight = '400', sub, style, numberOfLines, onPress }: {
-  children: React.ReactNode; size?: number; weight?: TextStyle['fontWeight']; sub?: boolean; style?: StyleProp<TextStyle>; numberOfLines?: number; onPress?: () => void;
+/** Every screen mounts through here, so no content can slip under the status bar. */
+export function Screen({ children, edges = ['top'], style }: {
+  children: React.ReactNode; edges?: Edge[]; style?: StyleProp<ViewStyle>;
 }) {
   const { c } = useTheme();
   return (
-    <Text onPress={onPress} numberOfLines={numberOfLines} style={[{ fontSize: size, fontWeight: weight, color: sub ? c.sub : c.text }, style]}>
+    <SafeAreaView edges={edges} style={[{ flex: 1, backgroundColor: c.bg }, style]}>
+      {children}
+    </SafeAreaView>
+  );
+}
+
+export function T({ children, size = 15, weight = '400', sub, faint, tabular, style, numberOfLines, onPress }: {
+  children: React.ReactNode; size?: number; weight?: TextStyle['fontWeight']; sub?: boolean; faint?: boolean;
+  tabular?: boolean; style?: StyleProp<TextStyle>; numberOfLines?: number; onPress?: () => void;
+}) {
+  const { c } = useTheme();
+  return (
+    <Text
+      onPress={onPress}
+      numberOfLines={numberOfLines}
+      style={[
+        { fontSize: size, fontWeight: weight, color: faint ? c.faint : sub ? c.sub : c.text },
+        tabular && numerals,
+        style,
+      ]}
+    >
       {children}
     </Text>
   );
 }
 
+/** Amounts always render with tabular figures so columns of money line up. */
+export function Money({ value, size = 15, weight = '600', tone, style }: {
+  value: number; size?: number; weight?: TextStyle['fontWeight']; tone?: string; style?: StyleProp<TextStyle>;
+}) {
+  const { c, symbol } = useTheme();
+  return (
+    <Text style={[{ fontSize: size, fontWeight: weight, color: tone ?? c.text }, numerals, style]}>
+      {fmtMoney(value, symbol)}
+    </Text>
+  );
+}
+
+export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
+  return <T size={26} weight="700" style={[{ letterSpacing: -0.4 }, style]}>{children}</T>;
+}
+
+export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  return (
+    <View style={[{ backgroundColor: c.card, borderRadius: radius.lg, padding: 16, borderWidth: 1, borderColor: c.line }, style]}>
+      {children}
+    </View>
+  );
+}
+
+export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  return <View style={[{ height: 1, backgroundColor: c.line }, style]} />;
+}
+
 export function Button({ title, onPress, kind = 'primary', icon, disabled, style }: {
-  title: string; onPress: () => void; kind?: 'primary' | 'ghost' | 'danger'; icon?: keyof typeof Ionicons.glyphMap; disabled?: boolean; style?: StyleProp<ViewStyle>;
+  title: string; onPress: () => void; kind?: 'primary' | 'ghost' | 'danger'; icon?: keyof typeof Ionicons.glyphMap;
+  disabled?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const { c } = useTheme();
-  const bg = kind === 'primary' ? c.accent : 'transparent';
-  const fg = kind === 'primary' ? c.accentText : kind === 'danger' ? c.danger : c.text;
+  const bg = kind === 'primary' ? c.ink : 'transparent';
+  const fg = kind === 'primary' ? c.inkText : kind === 'danger' ? c.danger : c.text;
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
       style={({ pressed }) => [{
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-        paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14, backgroundColor: bg,
+        paddingVertical: 15, paddingHorizontal: 18, borderRadius: radius.md, backgroundColor: bg,
         borderWidth: kind === 'primary' ? 0 : 1, borderColor: kind === 'danger' ? c.danger : c.line,
-        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        opacity: disabled ? 0.35 : pressed ? 0.65 : 1,
       }, style]}
     >
-      {icon ? <Ionicons name={icon} size={18} color={fg} /> : null}
+      {icon ? <Ionicons name={icon} size={17} color={fg} /> : null}
       <Text style={{ color: fg, fontWeight: '600', fontSize: 15 }}>{title}</Text>
     </Pressable>
   );
@@ -51,30 +97,33 @@ export function Chip({ label, active, onPress, color }: { label: string; active?
   return (
     <Pressable
       onPress={onPress}
-      style={{
-        paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, marginRight: 8, marginBottom: 8,
-        backgroundColor: active ? c.accent : c.card, borderWidth: 1, borderColor: active ? c.accent : c.line,
-        flexDirection: 'row', alignItems: 'center', gap: 6,
-      }}
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
+      style={({ pressed }) => ({
+        paddingVertical: 8, paddingHorizontal: 13, borderRadius: radius.pill, marginRight: 8, marginBottom: 8,
+        backgroundColor: active ? c.ink : 'transparent',
+        borderWidth: 1, borderColor: active ? c.ink : c.line,
+        flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1,
+      })}
     >
-      {color ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} /> : null}
-      <Text style={{ color: active ? c.accentText : c.text, fontSize: 13, fontWeight: '500' }}>{label}</Text>
+      {color ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: active ? c.inkText : color }} /> : null}
+      <Text style={{ color: active ? c.inkText : c.text, fontSize: 13, fontWeight: '500' }}>{label}</Text>
     </Pressable>
   );
 }
 
-export function Field(props: TextInputProps & { label?: string }) {
+export function Field(props: TextInputProps & { label?: string; containerStyle?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
-  const { label, style, ...rest } = props;
+  const { label, style, containerStyle, ...rest } = props;
   return (
-    <View style={{ marginBottom: 14 }}>
-      {label ? <T size={12} sub style={{ marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</T> : null}
+    <View style={[{ marginBottom: 14 }, containerStyle]}>
+      {label ? <T size={13} sub style={{ marginBottom: 7 }}>{label}</T> : null}
       <TextInput
-        placeholderTextColor={c.sub}
+        placeholderTextColor={c.faint}
         {...rest}
         style={[{
-          backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: 12,
-          paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: c.text,
+          backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: radius.md,
+          paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: c.text,
         }, style]}
       />
     </View>
@@ -85,19 +134,64 @@ export function Row({ children, style }: { children: React.ReactNode; style?: St
   return <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>{children}</View>;
 }
 
-export function Section({ title, right }: { title: string; right?: React.ReactNode }) {
+export function Section({ title, right, style }: { title: string; right?: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
-    <Row style={{ justifyContent: 'space-between', marginTop: 22, marginBottom: 10 }}>
-      <T size={13} sub weight="600" style={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>{title}</T>
+    <Row style={[{ justifyContent: 'space-between', marginTop: 26, marginBottom: 10 }, style]}>
+      <T size={14} weight="600" sub>{title}</T>
       {right}
     </Row>
   );
 }
 
-export function IconDot({ icon, color, size = 40 }: { icon: string; color: string; size?: number }) {
+/** Screen header. Modals pass onClose to get the dismiss control. */
+export function Header({ title, subtitle, onClose, right }: {
+  title: string; subtitle?: string; onClose?: () => void; right?: React.ReactNode;
+}) {
+  const { c } = useTheme();
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color + '22', alignItems: 'center', justifyContent: 'center' }}>
-      <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={size * 0.48} color={color} />
+    <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: subtitle ? 14 : 10 }}>
+      <View style={{ flex: 1 }}>
+        <Title>{title}</Title>
+        {subtitle ? <T size={14} sub style={{ marginTop: 3 }}>{subtitle}</T> : null}
+      </View>
+      {right}
+      {onClose ? (
+        <Pressable onPress={onClose} hitSlop={14} accessibilityLabel="Close" accessibilityRole="button">
+          <Ionicons name="close" size={24} color={c.sub} />
+        </Pressable>
+      ) : null}
+    </Row>
+  );
+}
+
+export function IconDot({ icon, color, size = 38 }: { icon: string; color: string; size?: number }) {
+  const { c } = useTheme();
+  return (
+    <View style={{
+      width: size, height: size, borderRadius: radius.md, backgroundColor: c.card,
+      borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center',
+    }}>
+      <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={size * 0.46} color={color} />
+    </View>
+  );
+}
+
+/** Horizontal proportional bar — the workhorse for ranked breakdowns. */
+export function Meter({ fraction, tone, height = 6 }: { fraction: number; tone?: string; height?: number }) {
+  const { c } = useTheme();
+  const w = Math.max(0, Math.min(fraction, 1)) * 100;
+  return (
+    <View style={{ height, borderRadius: height / 2, backgroundColor: c.line, overflow: 'hidden' }}>
+      <View style={{ width: `${w}%`, height, borderRadius: height / 2, backgroundColor: tone ?? c.text }} />
+    </View>
+  );
+}
+
+export function Empty({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <View style={{ paddingVertical: 36, alignItems: 'center' }}>
+      <T size={15} weight="600">{title}</T>
+      {hint ? <T size={14} sub style={{ marginTop: 4, textAlign: 'center' }}>{hint}</T> : null}
     </View>
   );
 }

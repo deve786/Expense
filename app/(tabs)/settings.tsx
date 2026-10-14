@@ -1,67 +1,87 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme, type ThemeMode } from '@/theme';
-import { Button, Card, Chip, Field, Row, Section, T } from '@/ui';
+import { Button, Chip, Divider, Field, Row, Screen, Section, T, Title } from '@/ui';
 import { exportCsv } from '@/csv';
 import { checkForOtaUpdate, updateInfo } from '@/ota';
 
 const SYMBOLS = ['₹', '$', '€', '£'];
 
+function NavRow({ label, icon, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15,
+        borderBottomWidth: 1, borderBottomColor: c.line, opacity: pressed ? 0.55 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={19} color={c.sub} />
+      <T size={15} style={{ flex: 1 }}>{label}</T>
+      <Ionicons name="chevron-forward" size={17} color={c.faint} />
+    </Pressable>
+  );
+}
+
 export default function Settings() {
-  const { mode, setMode, symbol, setSymbol, budget, setBudget } = useTheme();
+  const { c, mode, setMode, symbol, setSymbol, budget, setBudget } = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [budgetText, setBudgetText] = useState(budget ? String(budget) : '');
   const info = updateInfo();
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-      <T size={28} weight="700">Settings</T>
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <Title>Settings</Title>
 
-      <Section title="Monthly budget" />
-      <Card>
-        <Field
-          value={budgetText}
-          onChangeText={setBudgetText}
-          placeholder="0 = no budget"
-          keyboardType="decimal-pad"
-          style={{ marginBottom: 0 }}
-        />
-        <Button
-          title="Save budget"
-          kind="ghost"
-          onPress={() => {
-            const n = parseFloat(budgetText);
-            setBudget(isNaN(n) || n < 0 ? 0 : n);
-            Alert.alert('Saved', n > 0 ? 'Budget updated.' : 'Budget cleared.');
-          }}
-          style={{ marginTop: 10 }}
-        />
-      </Card>
+        <Section title="Monthly budget" />
+        <T size={13.5} sub style={{ marginBottom: 10, lineHeight: 19 }}>
+          Sets the progress bar on Home. Leave empty for no budget.
+        </T>
+        <Row style={{ gap: 10, alignItems: 'flex-start' }}>
+          <Field
+            value={budgetText}
+            onChangeText={setBudgetText}
+            placeholder="0"
+            keyboardType="decimal-pad"
+            containerStyle={{ flex: 1, marginBottom: 0 }}
+          />
+          <Button
+            title="Save"
+            kind="ghost"
+            onPress={() => {
+              const n = parseFloat(budgetText);
+              const clean = isNaN(n) || n < 0 ? 0 : n;
+              setBudget(clean);
+              Alert.alert('Saved', clean > 0 ? `Budget set to ${symbol}${clean}.` : 'Budget cleared.');
+            }}
+          />
+        </Row>
 
-      <Section title="Currency symbol" />
-      <Row style={{ flexWrap: 'wrap' }}>
-        {SYMBOLS.map((s) => (
-          <Chip key={s} label={s} active={symbol === s} onPress={() => setSymbol(s)} />
-        ))}
-      </Row>
+        <Section title="Currency" />
+        <Row style={{ flexWrap: 'wrap' }}>
+          {SYMBOLS.map((s) => (
+            <Chip key={s} label={s} active={symbol === s} onPress={() => setSymbol(s)} />
+          ))}
+        </Row>
 
-      <Section title="Appearance" />
-      <Row>
-        {(['system', 'light', 'dark'] as ThemeMode[]).map((m) => (
-          <Chip key={m} label={m[0].toUpperCase() + m.slice(1)} active={mode === m} onPress={() => setMode(m)} />
-        ))}
-      </Row>
+        <Section title="Appearance" />
+        <Row>
+          {(['system', 'light', 'dark'] as ThemeMode[]).map((m) => (
+            <Chip key={m} label={m[0].toUpperCase() + m.slice(1)} active={mode === m} onPress={() => setMode(m)} />
+          ))}
+        </Row>
 
-      <Section title="Manage" />
-      <View style={{ gap: 10 }}>
-        <Button title="Categories" kind="ghost" icon="pricetags-outline" onPress={() => router.push('/categories')} />
-        <Button title="Recurring expenses" kind="ghost" icon="repeat-outline" onPress={() => router.push('/recurring')} />
-        <Button
-          title="Export CSV"
-          kind="ghost"
+        <Section title="Manage" />
+        <Divider />
+        <NavRow label="Categories" icon="pricetags-outline" onPress={() => router.push('/categories')} />
+        <NavRow label="Recurring expenses" icon="repeat-outline" onPress={() => router.push('/recurring')} />
+        <NavRow
+          label="Export as CSV"
           icon="download-outline"
           onPress={async () => {
             try {
@@ -72,14 +92,33 @@ export default function Settings() {
             }
           }}
         />
-      </View>
 
-      <Section title="App updates" />
-      <Card>
-        <T size={12} sub>Runtime {info.runtimeVersion} · channel {info.channel}</T>
-        <T size={12} sub style={{ marginTop: 2 }}>Update: {String(info.updateId).slice(0, 8)}</T>
-        <Button title="Check for updates" kind="ghost" icon="cloud-download-outline" onPress={() => checkForOtaUpdate(true)} style={{ marginTop: 12 }} />
-      </Card>
-    </ScrollView>
+        <Section title="Updates" />
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 4 }}>
+          <T size={13.5} sub>Version</T>
+          <T size={13.5} tabular>{info.runtimeVersion}</T>
+        </Row>
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 4 }}>
+          <T size={13.5} sub>Channel</T>
+          <T size={13.5}>{info.channel}</T>
+        </Row>
+        <Row style={{ justifyContent: 'space-between', paddingVertical: 4 }}>
+          <T size={13.5} sub>Build</T>
+          <T size={13.5} tabular>{String(info.updateId).slice(0, 8)}</T>
+        </Row>
+        <Button
+          title="Check for updates"
+          kind="ghost"
+          icon="cloud-download-outline"
+          onPress={() => checkForOtaUpdate(true)}
+          style={{ marginTop: 14 }}
+        />
+
+        <T size={12.5} faint style={{ marginTop: 28, textAlign: 'center', lineHeight: 18 }}>
+          Spendly keeps every expense on this device.{'\n'}Nothing is uploaded anywhere.
+        </T>
+        <View style={{ height: 8, backgroundColor: c.bg }} />
+      </ScrollView>
+    </Screen>
   );
 }

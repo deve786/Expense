@@ -25,16 +25,24 @@ export type Recurring = {
 
 export const METHODS = ['Cash', 'UPI', 'Card', 'Bank'] as const;
 
+// Hue order is deliberate: warm and cool alternate so neighbouring swatches stay
+// distinguishable for red-green colour blindness. Validated, don't reorder casually.
 const DEFAULT_CATEGORIES: Omit<Category, 'id'>[] = [
-  { name: 'Food', icon: 'restaurant-outline', color: '#E4572E' },
-  { name: 'Transport', icon: 'car-outline', color: '#2E86AB' },
-  { name: 'Shopping', icon: 'bag-handle-outline', color: '#A23B72' },
-  { name: 'Bills', icon: 'receipt-outline', color: '#F18F01' },
-  { name: 'Rent', icon: 'home-outline', color: '#5C6B73' },
-  { name: 'Health', icon: 'medkit-outline', color: '#3BB273' },
-  { name: 'Entertainment', icon: 'film-outline', color: '#7768AE' },
-  { name: 'Other', icon: 'ellipsis-horizontal-circle-outline', color: '#8D99AE' },
+  { name: 'Food', icon: 'restaurant-outline', color: '#C8553D' },
+  { name: 'Transport', icon: 'car-outline', color: '#2E7DB8' },
+  { name: 'Shopping', icon: 'bag-handle-outline', color: '#A8831F' },
+  { name: 'Bills', icon: 'receipt-outline', color: '#7159C4' },
+  { name: 'Rent', icon: 'home-outline', color: '#2E9465' },
+  { name: 'Health', icon: 'medkit-outline', color: '#B0479B' },
+  { name: 'Entertainment', icon: 'film-outline', color: '#7B8B1E' },
+  { name: 'Other', icon: 'ellipsis-horizontal-circle-outline', color: '#0D8FAF' },
 ];
+
+/** Colours shipped before the muted palette, keyed by category name. */
+const LEGACY_COLORS: Record<string, string> = {
+  Food: '#E4572E', Transport: '#2E86AB', Shopping: '#A23B72', Bills: '#F18F01',
+  Rent: '#5C6B73', Health: '#3BB273', Entertainment: '#7768AE', Other: '#8D99AE',
+};
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -79,6 +87,11 @@ async function init() {
     for (const c of DEFAULT_CATEGORIES) {
       await db.runAsync('INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)', c.name, c.icon, c.color);
     }
+  } else {
+    // Repaint only the defaults the user never customised, so their own picks survive.
+    for (const c of DEFAULT_CATEGORIES) {
+      await db.runAsync('UPDATE categories SET color = ? WHERE name = ? AND color = ?', c.color, c.name, LEGACY_COLORS[c.name]);
+    }
   }
   await generateRecurring(db);
   return db;
@@ -118,7 +131,7 @@ export async function addCategory(name: string, icon: string, color: string) {
   const db = await getDb();
   await db.runAsync('INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)', name.trim(), icon, color);
 }
-const NEW_CATEGORY_COLORS = ['#E4572E', '#2E86AB', '#A23B72', '#F18F01', '#3BB273', '#7768AE', '#5C6B73', '#17BEBB'];
+export const CATEGORY_COLORS = ['#C8553D', '#2E7DB8', '#A8831F', '#7159C4', '#2E9465', '#B0479B', '#7B8B1E', '#0D8FAF'];
 
 /** Return the id of the category with this name (case-insensitive), creating it if it doesn't exist. */
 export async function findOrCreateCategory(name: string) {
@@ -127,7 +140,7 @@ export async function findOrCreateCategory(name: string) {
   const existing = await db.getFirstAsync<{ id: number }>('SELECT id FROM categories WHERE LOWER(name) = LOWER(?)', n);
   if (existing) return existing.id;
   const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM categories');
-  const color = NEW_CATEGORY_COLORS[(count?.c ?? 0) % NEW_CATEGORY_COLORS.length];
+  const color = CATEGORY_COLORS[(count?.c ?? 0) % CATEGORY_COLORS.length];
   const res = await db.runAsync('INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)', n, 'pricetag-outline', color);
   return res.lastInsertRowId;
 }

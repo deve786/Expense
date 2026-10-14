@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, saveExpense, type Category } from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
-import { useTheme } from '@/theme';
-import { Button, Chip, Field, Row, T } from '@/ui';
+import { numerals, radius, useTheme } from '@/theme';
+import { Button, Chip, Field, Header, Row, Screen, T } from '@/ui';
 
 export default function ExpenseForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -58,88 +58,88 @@ export default function ExpenseForm() {
 
   function onDelete() {
     if (!editId) return;
-    Alert.alert('Delete expense?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert('Delete this expense?', 'It will be removed from your history.', [
+      { text: 'Keep', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => { await deleteExpense(editId); router.back(); } },
     ]);
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        <Row style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-          <T size={20} weight="700">{editId ? 'Edit expense' : 'New expense'}</T>
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="close" size={24} color={c.text} />
-          </Pressable>
-        </Row>
+    <Screen edges={['top', 'bottom']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+          <Header title={editId ? 'Edit expense' : 'New expense'} onClose={() => router.back()} />
 
-        <T size={12} sub style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>Amount</T>
-        <Row style={{ marginBottom: 18, marginTop: 4 }}>
-          <T size={36} weight="700" sub>{symbol}</T>
-          <Field
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="0"
-            keyboardType="decimal-pad"
-            autoFocus={!editId}
-            style={{ fontSize: 36, fontWeight: '700', borderWidth: 0, backgroundColor: 'transparent', flex: 1 }}
-          />
-        </Row>
-
-        <T size={12} sub style={{ marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>Category</T>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {cats.map((k) => (
-            <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => setCatId(k.id)} />
-          ))}
-        </View>
-
-        {isOther && (
-          <Field
-            label="New category name (optional)"
-            value={customCat}
-            onChangeText={setCustomCat}
-            placeholder="e.g. Gifts"
-            maxLength={30}
-            style={{ marginTop: 10 }}
-          />
-        )}
-
-        <T size={12} sub style={{ marginTop: 10, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>Date</T>
-        <Pressable
-          onPress={() => setShowPicker((s) => !s)}
-          style={{ backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: 12, padding: 14, marginBottom: 14 }}
-        >
-          <Row style={{ justifyContent: 'space-between' }}>
-            <T>{prettyDate(date)} · {date}</T>
-            <Ionicons name="calendar-outline" size={18} color={c.sub} />
+          <Row style={{ alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 22 }}>
+            <T size={34} weight="600" sub>{symbol}</T>
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0"
+              placeholderTextColor={c.faint}
+              keyboardType="decimal-pad"
+              autoFocus={!editId}
+              style={[{
+                flex: 1, fontSize: 44, fontWeight: '700', color: c.text,
+                padding: 0, letterSpacing: -1.2,
+              }, numerals]}
+            />
           </Row>
-        </Pressable>
-        {showPicker && (
-          <DateTimePicker
-            value={fromStr(date)}
-            mode="date"
-            maximumDate={new Date()}
-            display={Platform.OS === 'ios' ? 'inline' : 'default'}
-            onChange={(_, d) => {
-              if (Platform.OS !== 'ios') setShowPicker(false);
-              if (d) setDate(toStr(d));
-            }}
-          />
-        )}
 
-        <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="e.g. Lunch with team" />
+          <T size={13} sub style={{ marginBottom: 9 }}>Category</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {cats.map((k) => (
+              <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => setCatId(k.id)} />
+            ))}
+          </View>
 
-        <T size={12} sub style={{ marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 }}>Paid with</T>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {METHODS.map((m) => (
-            <Chip key={m} label={m} active={method === m} onPress={() => setMethod(m)} />
-          ))}
-        </View>
+          {isOther && (
+            <Field
+              label="Name the new category (optional)"
+              value={customCat}
+              onChangeText={setCustomCat}
+              placeholder="e.g. Gifts"
+              maxLength={30}
+              containerStyle={{ marginTop: 12 }}
+            />
+          )}
 
-        <Button title={editId ? 'Save changes' : 'Add expense'} onPress={onSave} disabled={!valid} style={{ marginTop: 20 }} />
-        {editId ? <Button title="Delete" kind="danger" onPress={onDelete} style={{ marginTop: 10 }} /> : null}
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <T size={13} sub style={{ marginTop: 16, marginBottom: 9 }}>Date</T>
+          <Pressable
+            onPress={() => setShowPicker((s) => !s)}
+            style={{ backgroundColor: c.card, borderWidth: 1, borderColor: c.line, borderRadius: radius.md, padding: 14, marginBottom: 16 }}
+          >
+            <Row style={{ justifyContent: 'space-between' }}>
+              <T size={15}>{prettyDate(date)}</T>
+              <Ionicons name="calendar-outline" size={18} color={c.sub} />
+            </Row>
+          </Pressable>
+          {showPicker && (
+            <DateTimePicker
+              value={fromStr(date)}
+              mode="date"
+              maximumDate={new Date()}
+              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+              onChange={(_, d) => {
+                if (Platform.OS !== 'ios') setShowPicker(false);
+                if (d) setDate(toStr(d));
+              }}
+            />
+          )}
+
+          <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="e.g. Lunch with team" />
+
+          <T size={13} sub style={{ marginBottom: 9 }}>Paid with</T>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {METHODS.map((m) => (
+              <Chip key={m} label={m} active={method === m} onPress={() => setMethod(m)} />
+            ))}
+          </View>
+
+          <Button title={editId ? 'Save changes' : 'Add expense'} onPress={onSave} disabled={!valid} style={{ marginTop: 22 }} />
+          {editId ? <Button title="Delete expense" kind="danger" onPress={onDelete} style={{ marginTop: 10 }} /> : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }

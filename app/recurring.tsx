@@ -3,12 +3,11 @@ import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { METHODS, addRecurring, deleteRecurring, listCategories, listRecurring, type Category, type Recurring } from '@/db';
-import { fmtMoney } from '@/stats';
 import { useTheme } from '@/theme';
-import { Button, Card, Chip, Field, Row, T } from '@/ui';
+import { Button, Chip, Divider, Empty, Field, Header, Money, Row, Screen, Section, T } from '@/ui';
 
 export default function RecurringScreen() {
-  const { c, symbol } = useTheme();
+  const { c } = useTheme();
   const router = useRouter();
   const [list, setList] = useState<Recurring[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
@@ -36,49 +35,60 @@ export default function RecurringScreen() {
   }
 
   return (
-    <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-      <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-        <T size={20} weight="700">Recurring expenses</T>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Ionicons name="close" size={24} color={c.text} /></Pressable>
-      </Row>
-      <T size={13} sub style={{ marginBottom: 16 }}>Added automatically on the chosen day each month (when you open the app).</T>
+    <Screen edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <Header
+          title="Recurring"
+          subtitle="Added automatically each month when you open the app."
+          onClose={() => router.back()}
+        />
 
-      {list.length > 0 && (
-        <Card style={{ marginBottom: 20 }}>
-          {list.map((r, i) => (
-            <Row key={r.id} style={{ paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.line }}>
-              <View style={{ flex: 1 }}>
-                <T weight="600">{r.note || r.cat_name}</T>
-                <T size={12} sub>{r.cat_name} · day {r.day} · {r.method}</T>
-              </View>
-              <T weight="700" style={{ marginRight: 12 }}>{fmtMoney(r.amount, symbol)}</T>
-              <Pressable
-                hitSlop={10}
-                onPress={() =>
-                  Alert.alert('Remove recurring?', 'Past entries stay in your history.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Remove', style: 'destructive', onPress: async () => { await deleteRecurring(r.id); load(); } },
-                  ])
-                }
-              >
-                <Ionicons name="trash-outline" size={20} color={c.sub} />
-              </Pressable>
-            </Row>
-          ))}
-        </Card>
-      )}
+        {list.length === 0 ? (
+          <Empty title="Nothing repeating yet" hint="Add rent, subscriptions, or any fixed monthly cost." />
+        ) : (
+          <>
+            <Divider />
+            {list.map((r) => (
+              <Row key={r.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.line }}>
+                <View style={{ flex: 1 }}>
+                  <T size={15} weight="600">{r.note || r.cat_name}</T>
+                  <T size={12.5} sub style={{ marginTop: 2 }}>{r.cat_name} · day {r.day} · {r.method}</T>
+                </View>
+                <Money value={r.amount} size={15} weight="600" style={{ marginRight: 14 }} />
+                <Pressable
+                  hitSlop={12}
+                  accessibilityLabel="Remove"
+                  onPress={() =>
+                    Alert.alert('Stop repeating this?', 'Entries already added stay in your history.', [
+                      { text: 'Keep', style: 'cancel' },
+                      { text: 'Stop', style: 'destructive', onPress: async () => { await deleteRecurring(r.id); load(); } },
+                    ])
+                  }
+                >
+                  <Ionicons name="trash-outline" size={19} color={c.faint} />
+                </Pressable>
+              </Row>
+            ))}
+          </>
+        )}
 
-      <T size={13} sub weight="600" style={{ marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 }}>New recurring</T>
-      <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" />
-      <Field label="Note" value={note} onChangeText={setNote} placeholder="e.g. Rent, Netflix" />
-      <Field label="Day of month (1-31)" value={day} onChangeText={setDay} keyboardType="number-pad" />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {cats.map((k) => <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => setCatId(k.id)} />)}
-      </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {METHODS.map((m) => <Chip key={m} label={m} active={method === m} onPress={() => setMethod(m)} />)}
-      </View>
-      <Button title="Add recurring" onPress={add} disabled={!valid} style={{ marginTop: 8 }} />
-    </ScrollView>
+        <Section title="Add a recurring expense" />
+        <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" />
+        <Field label="Note" value={note} onChangeText={setNote} placeholder="e.g. Rent, Netflix" />
+        <Field label="Day of the month" value={day} onChangeText={setDay} keyboardType="number-pad" placeholder="1" />
+
+        <T size={13} sub style={{ marginBottom: 9 }}>Category</T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {cats.map((k) => <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => setCatId(k.id)} />)}
+        </View>
+
+        <T size={13} sub style={{ marginTop: 14, marginBottom: 9 }}>Paid with</T>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {METHODS.map((m) => <Chip key={m} label={m} active={method === m} onPress={() => setMethod(m)} />)}
+        </View>
+
+        <Button title="Add recurring" onPress={add} disabled={!valid} style={{ marginTop: 18 }} />
+      </ScrollView>
+    </Screen>
   );
 }

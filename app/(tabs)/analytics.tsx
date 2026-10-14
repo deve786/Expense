@@ -1,21 +1,19 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { listExpenses, type ExpenseRow } from '@/db';
 import { addDays, daysBetween, fromStr, monthName, monthRange, prettyRange, toStr, todayStr } from '@/dates';
 import { byCategory, fmtMoney, previousRange, sum, trend } from '@/stats';
-import { useTheme } from '@/theme';
-import { Card, Chip, IconDot, Row, Section, T } from '@/ui';
-import { Bars, Donut } from '@/charts';
+import { radius, useTheme } from '@/theme';
+import { Chip, Divider, Empty, Money, Row, Screen, Section, T, Title } from '@/ui';
+import { Bars, RankedCategories } from '@/charts';
 
 type Mode = 'month' | 'range';
 
 export default function Analytics() {
   const { c, symbol } = useTheme();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   const now = new Date();
@@ -54,8 +52,8 @@ export default function Analytics() {
   }, [rows]);
 
   const diff = prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
-  const effectiveDays = mode === 'month' && year === now.getFullYear() && month0 === now.getMonth() ? now.getDate() : span;
   const isCurrentMonth = mode === 'month' && year === now.getFullYear() && month0 === now.getMonth();
+  const effectiveDays = isCurrentMonth ? now.getDate() : span;
 
   function shiftMonth(delta: number) {
     const d = new Date(year, month0 + delta, 1);
@@ -64,137 +62,134 @@ export default function Analytics() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: 40 }}>
-      <T size={28} weight="700" style={{ marginBottom: 12 }}>Analytics</T>
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 40 }}>
+        <Title style={{ marginBottom: 14 }}>Analytics</Title>
 
-      <Row>
-        <Chip label="Month" active={mode === 'month'} onPress={() => setMode('month')} />
-        <Chip label="Custom range" active={mode === 'range'} onPress={() => setMode('range')} />
-      </Row>
-
-      {mode === 'month' ? (
-        <Row style={{ justifyContent: 'space-between', marginVertical: 8 }}>
-          <Pressable onPress={() => shiftMonth(-1)} hitSlop={12}><Ionicons name="chevron-back" size={22} color={c.text} /></Pressable>
-          <T size={18} weight="600">{monthName(month0)} {year}</T>
-          <Pressable onPress={() => shiftMonth(1)} hitSlop={12} disabled={isCurrentMonth} style={{ opacity: isCurrentMonth ? 0.25 : 1 }}>
-            <Ionicons name="chevron-forward" size={22} color={c.text} />
-          </Pressable>
+        <Row>
+          <Chip label="By month" active={mode === 'month'} onPress={() => setMode('month')} />
+          <Chip label="Custom range" active={mode === 'range'} onPress={() => setMode('range')} />
         </Row>
-      ) : (
-        <View style={{ marginVertical: 8 }}>
-          <Row style={{ gap: 10 }}>
-            {(['from', 'to'] as const).map((k) => (
-              <Pressable
-                key={k}
-                onPress={() => setPicking(picking === k ? null : k)}
-                style={{ flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: picking === k ? c.text : c.line, borderRadius: 12, padding: 12 }}
-              >
-                <T size={11} sub style={{ textTransform: 'uppercase' }}>{k}</T>
-                <T weight="600">{k === 'from' ? rangeFrom : rangeTo}</T>
-              </Pressable>
-            ))}
-          </Row>
-          {picking && (
-            <DateTimePicker
-              value={fromStr(picking === 'from' ? rangeFrom : rangeTo)}
-              mode="date"
-              maximumDate={new Date()}
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              onChange={(_, d) => {
-                const which = picking;
-                if (Platform.OS !== 'ios') setPicking(null);
-                if (!d || !which) return;
-                const s = toStr(d);
-                if (which === 'from') {
-                  setRangeFrom(s);
-                  if (s > rangeTo) setRangeTo(s);
-                } else {
-                  setRangeTo(s);
-                  if (s < rangeFrom) setRangeFrom(s);
-                }
-              }}
-            />
-          )}
-          <T size={12} sub style={{ marginTop: 8 }}>{prettyRange(rangeFrom, rangeTo)} · {span} days</T>
-        </View>
-      )}
 
-      <Card style={{ marginTop: 8 }}>
-        <T size={12} sub>Total spent</T>
-        <T size={34} weight="700" style={{ letterSpacing: -0.5 }}>{fmtMoney(total, symbol)}</T>
+        {mode === 'month' ? (
+          <Row style={{ justifyContent: 'space-between', marginTop: 6, marginBottom: 4 }}>
+            <Pressable onPress={() => shiftMonth(-1)} hitSlop={14} accessibilityLabel="Previous month">
+              <Ionicons name="chevron-back" size={22} color={c.text} />
+            </Pressable>
+            <T size={17} weight="600">{monthName(month0)} {year}</T>
+            <Pressable
+              onPress={() => shiftMonth(1)}
+              hitSlop={14}
+              disabled={isCurrentMonth}
+              accessibilityLabel="Next month"
+              style={{ opacity: isCurrentMonth ? 0.25 : 1 }}
+            >
+              <Ionicons name="chevron-forward" size={22} color={c.text} />
+            </Pressable>
+          </Row>
+        ) : (
+          <View style={{ marginTop: 4 }}>
+            <Row style={{ gap: 10 }}>
+              {(['from', 'to'] as const).map((k) => (
+                <Pressable
+                  key={k}
+                  onPress={() => setPicking(picking === k ? null : k)}
+                  style={{
+                    flex: 1, backgroundColor: c.card, borderWidth: 1,
+                    borderColor: picking === k ? c.text : c.line, borderRadius: radius.md, padding: 12,
+                  }}
+                >
+                  <T size={12} sub>{k === 'from' ? 'From' : 'To'}</T>
+                  <T weight="600" tabular style={{ marginTop: 2 }}>{k === 'from' ? rangeFrom : rangeTo}</T>
+                </Pressable>
+              ))}
+            </Row>
+            {picking && (
+              <DateTimePicker
+                value={fromStr(picking === 'from' ? rangeFrom : rangeTo)}
+                mode="date"
+                maximumDate={new Date()}
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={(_, d) => {
+                  const which = picking;
+                  if (Platform.OS !== 'ios') setPicking(null);
+                  if (!d || !which) return;
+                  const s = toStr(d);
+                  if (which === 'from') {
+                    setRangeFrom(s);
+                    if (s > rangeTo) setRangeTo(s);
+                  } else {
+                    setRangeTo(s);
+                    if (s < rangeFrom) setRangeFrom(s);
+                  }
+                }}
+              />
+            )}
+            <T size={13} sub style={{ marginTop: 10 }}>{prettyRange(rangeFrom, rangeTo)} · {span} days</T>
+          </View>
+        )}
+
+        <T size={40} weight="700" tabular style={{ marginTop: 20, letterSpacing: -1.3 }}>
+          {fmtMoney(total, symbol)}
+        </T>
         {diff !== null ? (
-          <T size={13} style={{ color: diff > 0 ? c.danger : c.good, marginTop: 2 }}>
-            {diff > 0 ? '▲' : '▼'} {Math.abs(Math.round(diff))}% vs previous period ({fmtMoney(prevTotal, symbol)})
+          <T size={14} tabular style={{ color: diff > 0 ? c.danger : c.good, marginTop: 2 }}>
+            {diff > 0 ? 'Up' : 'Down'} {Math.abs(Math.round(diff))}% from {fmtMoney(prevTotal, symbol)} last period
           </T>
         ) : (
-          <T size={13} sub style={{ marginTop: 2 }}>No spending in the previous period</T>
+          <T size={14} sub style={{ marginTop: 2 }}>Nothing spent in the previous period</T>
         )}
-        <Row style={{ marginTop: 14, gap: 24 }}>
-          <View>
-            <T size={11} sub>Daily avg</T>
-            <T weight="700">{fmtMoney(effectiveDays > 0 ? total / effectiveDays : 0, symbol)}</T>
-          </View>
-          <View>
-            <T size={11} sub>Entries</T>
-            <T weight="700">{rows.length}</T>
-          </View>
-          <View>
-            <T size={11} sub>Avg / entry</T>
-            <T weight="700">{fmtMoney(rows.length ? total / rows.length : 0, symbol)}</T>
-          </View>
+
+        <Row style={{ marginTop: 20, alignItems: 'stretch' }}>
+          {[
+            { label: 'Daily avg', value: fmtMoney(effectiveDays > 0 ? total / effectiveDays : 0, symbol) },
+            { label: 'Entries', value: String(rows.length) },
+            { label: 'Avg entry', value: fmtMoney(rows.length ? total / rows.length : 0, symbol) },
+          ].map((s, i) => (
+            <React.Fragment key={s.label}>
+              {i > 0 && <View style={{ width: 1, backgroundColor: c.line, marginHorizontal: 14 }} />}
+              <View style={{ flex: 1 }}>
+                <T size={12.5} sub>{s.label}</T>
+                <T size={17} weight="700" tabular style={{ marginTop: 3 }}>{s.value}</T>
+              </View>
+            </React.Fragment>
+          ))}
         </Row>
-      </Card>
 
-      {rows.length === 0 ? (
-        <T sub style={{ marginTop: 24, textAlign: 'center' }}>No expenses in this period.</T>
-      ) : (
-        <>
-          <Section title="By category" />
-          <Card>
-            <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <Donut data={cats} center={fmtMoney(total, symbol)} />
-            </View>
-            {cats.map((k) => (
-              <Row key={k.name} style={{ paddingVertical: 8, gap: 12 }}>
-                <IconDot icon={k.icon} color={k.color} size={34} />
+        {rows.length === 0 ? (
+          <Empty title="Nothing in this period" hint="Pick another month or add an expense." />
+        ) : (
+          <>
+            <Section title="Where it went" />
+            <Divider />
+            <RankedCategories data={cats} total={total} />
+
+            <Section title={span <= 45 ? 'Day by day' : span <= 190 ? 'Week by week' : 'Month by month'} />
+            <Bars data={series} width={width - 40} />
+
+            <Section title="Largest expenses" />
+            <Divider />
+            {biggest.map((e) => (
+              <Row key={e.id} style={{ paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.line }}>
                 <View style={{ flex: 1 }}>
-                  <T weight="600">{k.name}</T>
-                  <T size={12} sub>{k.count} entries · {total > 0 ? Math.round((k.total / total) * 100) : 0}%</T>
+                  <T size={15} weight="600" numberOfLines={1}>{e.note || e.cat_name}</T>
+                  <T size={12.5} sub style={{ marginTop: 2 }}>{e.cat_name} · {e.date}</T>
                 </View>
-                <T weight="700">{fmtMoney(k.total, symbol)}</T>
+                <Money value={e.amount} size={15} weight="600" />
               </Row>
             ))}
-          </Card>
 
-          <Section title={span <= 45 ? 'Daily' : span <= 190 ? 'Weekly' : 'Monthly'} />
-          <Card>
-            <Bars data={series} width={width - 40 - 32} />
-          </Card>
-
-          <Section title="Largest expenses" />
-          <Card>
-            {biggest.map((e, i) => (
-              <Row key={e.id} style={{ paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: c.line }}>
-                <View style={{ flex: 1 }}>
-                  <T weight="600" numberOfLines={1}>{e.note || e.cat_name}</T>
-                  <T size={12} sub>{e.date} · {e.cat_name}</T>
-                </View>
-                <T weight="700">{fmtMoney(e.amount, symbol)}</T>
+            <Section title="How it was paid" />
+            <Divider />
+            {methods.map(([m, v]) => (
+              <Row key={m} style={{ justifyContent: 'space-between', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.line }}>
+                <T size={15}>{m}</T>
+                <Money value={v} size={15} weight="600" />
               </Row>
             ))}
-          </Card>
-
-          <Section title="Payment method" />
-          <Card>
-            {methods.map(([m, v], i) => (
-              <Row key={m} style={{ justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: i ? 1 : 0, borderTopColor: c.line }}>
-                <T>{m}</T>
-                <T weight="700">{fmtMoney(v, symbol)}</T>
-              </Row>
-            ))}
-          </Card>
-        </>
-      )}
-    </ScrollView>
+          </>
+        )}
+      </ScrollView>
+    </Screen>
   );
 }

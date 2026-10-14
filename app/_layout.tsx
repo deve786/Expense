@@ -9,20 +9,6 @@ import { checkForOtaUpdate } from '@/ota';
 
 function Shell() {
   const { c, isDark } = useTheme();
-  return (
-    <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="expense" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="recurring" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
-      </Stack>
-    </>
-  );
-}
-
-export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -30,14 +16,27 @@ export default function RootLayout() {
     checkForOtaUpdate();
   }, []);
 
-  if (!ready) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      {ready ? (
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="expense" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="recurring" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
+        </Stack>
+      ) : (
+        // Painted in theme colours so launch doesn't flash white before the DB opens.
+        <View style={{ flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={c.faint} />
+        </View>
+      )}
+    </>
+  );
+}
 
+export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>

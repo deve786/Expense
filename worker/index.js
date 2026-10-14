@@ -1,7 +1,9 @@
 // Cloudflare Worker: thin proxy between the Spendly app and the Claude API.
 // The API key lives only here (as a secret), never inside the app.
 
-const MODEL = 'claude-haiku-5-5';
+// Haiku keeps this cheap, which matters for a free personal app. Override with the
+// MODEL var in wrangler if you want a stronger model for the Ask tab.
+const MODEL = 'claude-haiku-4-5';
 const MAX_CONTEXT_CHARS = 200_000;
 
 const SYSTEM = `You are the assistant inside Spendly, a personal expense tracker app.

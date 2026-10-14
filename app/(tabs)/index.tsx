@@ -1,23 +1,25 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listExpenses, refreshRecurring, type ExpenseRow } from '@/db';
 import { monthName, monthRange, todayStr, addDays } from '@/dates';
 import { byCategory, fmtMoney, sum } from '@/stats';
-import { useTheme } from '@/theme';
-import { Button, Card, Row, Section, T } from '@/ui';
+import { budgetTone, useTheme } from '@/theme';
+import { Button, Divider, Empty, Meter, Money, Row, Screen, Section, T } from '@/ui';
 import { ExpenseItem } from '@/ExpenseItem';
 
 export default function Home() {
   const { c, symbol, budget } = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [recent, setRecent] = useState<ExpenseRow[]>([]);
 
-  const now = new Date();
-  const { from, to } = monthRange(now.getFullYear(), now.getMonth());
+  // Derived from the date string rather than a Date object: primitives keep the
+  // memoised range referentially stable, which the focus effect depends on.
+  const today = todayStr();
+  const year = Number(today.slice(0, 4));
+  const month0 = Number(today.slice(5, 7)) - 1;
+  const { from, to } = useMemo(() => monthRange(year, month0), [year, month0]);
 
   useFocusEffect(
     useCallback(() => {
@@ -30,63 +32,70 @@ export default function Home() {
   );
 
   const total = sum(rows);
-  const today = todayStr();
   const todayTotal = sum(rows.filter((r) => r.date === today));
   const weekTotal = sum(rows.filter((r) => r.date >= addDays(today, -6)));
   const top = byCategory(rows)[0];
   const pct = budget > 0 ? total / budget : 0;
-  const barColor = pct >= 1 ? c.danger : pct >= 0.8 ? '#F18F01' : c.good;
+  const tone = budgetTone(pct, c);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: 40 }}>
-      <T size={13} sub weight="600" style={{ textTransform: 'uppercase', letterSpacing: 0.8 }}>
-        {monthName(now.getMonth())} {now.getFullYear()}
-      </T>
-      <T size={44} weight="700" style={{ marginTop: 4, letterSpacing: -1 }}>{fmtMoney(total, symbol)}</T>
-      <T sub size={13}>spent this month</T>
+    <Screen>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 12, paddingBottom: 40 }}>
+        <T size={14} sub>{monthName(month0)} {year}</T>
+        <T size={48} weight="700" tabular style={{ marginTop: 2, letterSpacing: -1.6 }}>
+          {fmtMoney(total, symbol)}
+        </T>
+        <T size={14} sub style={{ marginTop: 1 }}>spent this month</T>
 
-      {budget > 0 && (
-        <View style={{ marginTop: 16 }}>
-          <View style={{ height: 8, borderRadius: 4, backgroundColor: c.line, overflow: 'hidden' }}>
-            <View style={{ width: `${Math.min(pct, 1) * 100}%`, height: 8, backgroundColor: barColor }} />
+        {budget > 0 && (
+          <View style={{ marginTop: 18 }}>
+            <Meter fraction={pct} tone={tone} />
+            <Row style={{ justifyContent: 'space-between', marginTop: 8 }}>
+              <T size={13} sub tabular>{Math.round(pct * 100)}% of {fmtMoney(budget, symbol)}</T>
+              <T size={13} weight="500" tabular style={{ color: tone }}>
+                {pct >= 1
+                  ? `${fmtMoney(total - budget, symbol)} over`
+                  : `${fmtMoney(budget - total, symbol)} left`}
+              </T>
+            </Row>
           </View>
-          <Row style={{ justifyContent: 'space-between', marginTop: 6 }}>
-            <T size={12} sub>{Math.round(pct * 100)}% of {fmtMoney(budget, symbol)}</T>
-            <T size={12} style={{ color: pct >= 1 ? c.danger : c.sub }}>
-              {pct >= 1 ? `Over by ${fmtMoney(total - budget, symbol)}` : `${fmtMoney(budget - total, symbol)} left`}
-            </T>
-          </Row>
-        </View>
-      )}
+        )}
 
-      <Row style={{ gap: 12, marginTop: 20 }}>
-        <Card style={{ flex: 1 }}>
-          <T size={12} sub>Today</T>
-          <T size={20} weight="700" style={{ marginTop: 2 }}>{fmtMoney(todayTotal, symbol)}</T>
-        </Card>
-        <Card style={{ flex: 1 }}>
-          <T size={12} sub>Last 7 days</T>
-          <T size={20} weight="700" style={{ marginTop: 2 }}>{fmtMoney(weekTotal, symbol)}</T>
-        </Card>
-      </Row>
-      {top && (
-        <Card style={{ marginTop: 12 }}>
-          <T size={12} sub>Top category</T>
-          <Row style={{ justifyContent: 'space-between', marginTop: 2 }}>
-            <T weight="600">{top.name}</T>
-            <T weight="700">{fmtMoney(top.total, symbol)}</T>
-          </Row>
-        </Card>
-      )}
+        <Row style={{ marginTop: 24, alignItems: 'stretch' }}>
+          <View style={{ flex: 1 }}>
+            <T size={13} sub>Today</T>
+            <Money value={todayTotal} size={21} weight="700" style={{ marginTop: 3 }} />
+          </View>
+          <View style={{ width: 1, backgroundColor: c.line, marginHorizontal: 18 }} />
+          <View style={{ flex: 1 }}>
+            <T size={13} sub>Last 7 days</T>
+            <Money value={weekTotal} size={21} weight="700" style={{ marginTop: 3 }} />
+          </View>
+        </Row>
 
-      <Button title="Add expense" icon="add" onPress={() => router.push('/expense')} style={{ marginTop: 20 }} />
+        {top && (
+          <>
+            <Divider style={{ marginTop: 20 }} />
+            <Row style={{ justifyContent: 'space-between', marginTop: 14 }}>
+              <T size={14} sub>Most spent on</T>
+              <Row style={{ gap: 8 }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: top.color }} />
+                <T size={14} weight="600">{top.name}</T>
+                <Money value={top.total} size={14} weight="600" />
+              </Row>
+            </Row>
+          </>
+        )}
 
-      <Section title="Recent" right={<T size={13} sub onPress={() => router.push('/history')}>See all</T>} />
-      {recent.length === 0 ? (
-        <T sub>No expenses yet. Add your first one.</T>
-      ) : (
-        recent.map((e) => <ExpenseItem key={e.id} e={e} />)
-      )}
-    </ScrollView>
+        <Button title="Add expense" icon="add" onPress={() => router.push('/expense')} style={{ marginTop: 24 }} />
+
+        <Section title="Recent" right={<T size={14} sub onPress={() => router.push('/history')}>See all</T>} />
+        {recent.length === 0 ? (
+          <Empty title="No expenses yet" hint="Add your first one to start tracking." />
+        ) : (
+          recent.map((e) => <ExpenseItem key={e.id} e={e} />)
+        )}
+      </ScrollView>
+    </Screen>
   );
 }
