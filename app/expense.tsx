@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { guessCategoryWithAI } from '@/ai/categorize';
 import {
   METHODS, deleteExpense, findOrCreateCategory, getExpense, listCategories, listExpenseItems,
   saveExpense, saveExpenseItems, type Category, type ExpenseItem as ExpenseItemRow,
@@ -58,8 +59,13 @@ export default function ExpenseForm() {
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [aiGuessing, setAiGuessing] = useState(false);
   // Stops auto-categorising from title once the user has picked one themselves.
   const catAutoPick = useRef(true);
+  const aiDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Bumped on every keystroke so a slow AI reply for an earlier title can't
+  // land after the user has kept typing (or picked a category by hand).
+  const aiSeq = useRef(0);
 
   useEffect(() => {
     (async () => {
@@ -87,17 +93,47 @@ export default function ExpenseForm() {
     })();
   }, [editId]);
 
+  useEffect(() => {
+    return () => {
+      if (aiDebounce.current) clearTimeout(aiDebounce.current);
+    };
+  }, []);
+
   function onChangeNote(t: string) {
     setNote(t);
+    aiSeq.current += 1;
+    if (aiDebounce.current) clearTimeout(aiDebounce.current);
+    setAiGuessing(false);
     if (!catAutoPick.current) return;
+
     const guess = guessCategoryName(t);
     if (!guess) return;
     const match = cats.find((k) => k.name === guess);
     if (match) setCatId(match.id);
+
+    // The keyword list didn't recognise this one — ask the AI once typing
+    // pauses, rather than on every keystroke.
+    if (guess !== 'Other') return;
+    const seq = aiSeq.current;
+    aiDebounce.current = setTimeout(() => {
+      setAiGuessing(true);
+      guessCategoryWithAI(t, cats.map((k) => k.name))
+        .then((name) => {
+          if (seq !== aiSeq.current || !catAutoPick.current || !name) return;
+          const aiMatch = cats.find((k) => k.name === name);
+          if (aiMatch) setCatId(aiMatch.id);
+        })
+        .finally(() => {
+          if (seq === aiSeq.current) setAiGuessing(false);
+        });
+    }, 600);
   }
 
   function onPickCategory(id: string) {
     catAutoPick.current = false;
+    aiSeq.current += 1;
+    if (aiDebounce.current) clearTimeout(aiDebounce.current);
+    setAiGuessing(false);
     setCatId(id);
   }
 
@@ -325,7 +361,15 @@ export default function ExpenseForm() {
             placeholder={hasItems ? 'e.g. Walmart run' : 'e.g. Lunch with team'}
           />
 
-          <T size={13} sub style={{ marginBottom: 9 }}>Category</T>
+          <Row style={{ marginBottom: 9, gap: 7 }}>
+            <T size={13} sub>Category</T>
+            {aiGuessing && (
+              <Row style={{ gap: 5 }}>
+                <ActivityIndicator size="small" color={c.sub} />
+                <T size={12} sub>Guessing with AI…</T>
+              </Row>
+            )}
+          </Row>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {cats.map((k) => (
               <Chip key={k.id} label={k.name} color={k.color} active={catId === k.id} onPress={() => onPickCategory(k.id)} />
