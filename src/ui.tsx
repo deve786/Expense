@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleProp, Text, TextInput, TextInputProps, View, ViewStyle, TextStyle } from 'react-native';
+import { Modal, Pressable, StyleProp, Text, TextInput, TextInputProps, View, ViewStyle, TextStyle } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { numerals, radius, useTheme } from './theme';
@@ -184,6 +184,43 @@ export function Meter({ fraction, tone, height = 6 }: { fraction: number; tone?:
     <View style={{ height, borderRadius: height / 2, backgroundColor: c.line, overflow: 'hidden' }}>
       <View style={{ width: `${w}%`, height, borderRadius: height / 2, backgroundColor: tone ?? c.text }} />
     </View>
+  );
+}
+
+/**
+ * In-app confirmation, replacing the OS's native Alert for destructive actions —
+ * a system dialog looks out of place against the rest of the app's design.
+ */
+export function ConfirmDialog({ visible, title, message, confirmLabel = 'Delete', onConfirm, onCancel }: {
+  visible: boolean; title: string; message: string; confirmLabel?: string; onConfirm: () => void; onCancel: () => void;
+}) {
+  const { c } = useTheme();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable
+        onPress={onCancel}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 28 }}
+      >
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            width: '100%', maxWidth: 360, backgroundColor: c.card, borderRadius: radius.lg,
+            borderWidth: 1, borderColor: c.line, padding: 20,
+          }}
+        >
+          <T size={16} weight="700">{title}</T>
+          <T size={14} sub style={{ marginTop: 8, lineHeight: 20 }}>{message}</T>
+          <Row style={{ justifyContent: 'flex-end', gap: 24, marginTop: 22 }}>
+            <Pressable onPress={onCancel} hitSlop={10} accessibilityRole="button">
+              <T size={14.5} weight="600">Keep</T>
+            </Pressable>
+            <Pressable onPress={onConfirm} hitSlop={10} accessibilityRole="button">
+              <T size={14.5} weight="700" style={{ color: c.danger }}>{confirmLabel}</T>
+            </Pressable>
+          </Row>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 

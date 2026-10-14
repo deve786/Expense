@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import {
 } from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
 import { numerals, radius, useTheme } from '@/theme';
-import { Button, Chip, Divider, Field, Header, IconDot, Row, Screen, T } from '@/ui';
+import { Button, Chip, ConfirmDialog, Divider, Field, Header, IconDot, Row, Screen, T } from '@/ui';
 
 type Mode = 'view' | 'edit';
 const parseAmt = (s: string) => parseFloat(s.replace(/,/g, ''));
@@ -32,6 +32,7 @@ export default function IncomeForm() {
   const [method, setMethod] = useState<string>('Bank');
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -70,12 +71,11 @@ export default function IncomeForm() {
     router.back();
   }
 
-  function onDelete() {
+  async function confirmDelete() {
     if (!editId) return;
-    Alert.alert('Delete this income entry?', 'It will be removed from your history.', [
-      { text: 'Keep', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteIncome(editId); router.back(); } },
-    ]);
+    setConfirmingDelete(false);
+    await deleteIncome(editId);
+    router.back();
   }
 
   if (mode === 'view') {
@@ -119,7 +119,15 @@ export default function IncomeForm() {
           )}
 
           <Button title="Edit income" icon="pencil-outline" kind="ghost" onPress={() => setMode('edit')} style={{ marginTop: 24 }} />
+          <Button title="Delete income" kind="danger" onPress={() => setConfirmingDelete(true)} style={{ marginTop: 10 }} />
         </ScrollView>
+        <ConfirmDialog
+          visible={confirmingDelete}
+          title="Delete this income entry?"
+          message="It will be removed from your history."
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirmingDelete(false)}
+        />
       </Screen>
     );
   }
@@ -207,9 +215,16 @@ export default function IncomeForm() {
           </View>
 
           <Button title={editId ? 'Save changes' : 'Add income'} onPress={onSave} disabled={!valid} style={{ marginTop: 22, backgroundColor: valid ? c.good : undefined }} />
-          {editId ? <Button title="Delete income" kind="danger" onPress={onDelete} style={{ marginTop: 10 }} /> : null}
+          {editId ? <Button title="Delete income" kind="danger" onPress={() => setConfirmingDelete(true)} style={{ marginTop: 10 }} /> : null}
         </ScrollView>
       </KeyboardAvoidingView>
+      <ConfirmDialog
+        visible={confirmingDelete}
+        title="Delete this income entry?"
+        message="It will be removed from your history."
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </Screen>
   );
 }

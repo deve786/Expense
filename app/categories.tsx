@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { CATEGORY_COLORS, addCategory, deleteCategory, listCategories, type Category } from '@/db';
 import { radius, useTheme } from '@/theme';
-import { Button, Divider, Field, Header, IconDot, Row, Screen, Section, T } from '@/ui';
+import { Button, ConfirmDialog, Divider, Field, Header, IconDot, Row, Screen, Section, T } from '@/ui';
 
 const ICONS = [
   'cafe-outline', 'fitness-outline', 'airplane-outline', 'school-outline', 'paw-outline',
@@ -18,6 +18,7 @@ export default function Categories() {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState(ICONS[0]);
   const [color, setColor] = useState(CATEGORY_COLORS[0]);
+  const [toDelete, setToDelete] = useState<Category | null>(null);
 
   const load = useCallback(async () => setCats(await listCategories()), []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -39,10 +40,14 @@ export default function Categories() {
       Alert.alert('Keep this one', '"Other" catches expenses from deleted categories.');
       return;
     }
-    Alert.alert(`Delete ${k.name}?`, 'Its expenses move to "Other".', [
-      { text: 'Keep', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteCategory(k.id); load(); } },
-    ]);
+    setToDelete(k);
+  }
+
+  async function confirmRemove() {
+    if (!toDelete) return;
+    await deleteCategory(toDelete.id);
+    setToDelete(null);
+    load();
   }
 
   return (
@@ -96,6 +101,13 @@ export default function Categories() {
         <Button title="Add category" onPress={add} disabled={!name.trim()} />
         <View style={{ height: 20 }} />
       </ScrollView>
+      <ConfirmDialog
+        visible={toDelete !== null}
+        title={`Delete ${toDelete?.name}?`}
+        message='Its expenses move to "Other".'
+        onConfirm={confirmRemove}
+        onCancel={() => setToDelete(null)}
+      />
     </Screen>
   );
 }

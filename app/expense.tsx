@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import {
 } from '@/db';
 import { fromStr, prettyDate, toStr, todayStr } from '@/dates';
 import { numerals, radius, useTheme } from '@/theme';
-import { Button, Chip, Divider, Field, Header, IconDot, Money, Row, Screen, T } from '@/ui';
+import { Button, Chip, ConfirmDialog, Divider, Field, Header, IconDot, Money, Row, Screen, T } from '@/ui';
 
 type DraftItem = { name: string; qty: string; amount: string };
 type Mode = 'view' | 'edit';
@@ -57,6 +57,7 @@ export default function ExpenseForm() {
   const [method, setMethod] = useState<string>('UPI');
   const [showPicker, setShowPicker] = useState(false);
   const [customCat, setCustomCat] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Stops auto-categorising from title once the user has picked one themselves.
   const catAutoPick = useRef(true);
 
@@ -150,12 +151,11 @@ export default function ExpenseForm() {
     router.back();
   }
 
-  function onDelete() {
+  async function confirmDelete() {
     if (!editId) return;
-    Alert.alert('Delete this expense?', 'It will be removed from your history.', [
-      { text: 'Keep', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteExpense(editId); router.back(); } },
-    ]);
+    setConfirmingDelete(false);
+    await deleteExpense(editId);
+    router.back();
   }
 
   const itemInputStyle = {
@@ -218,7 +218,15 @@ export default function ExpenseForm() {
           )}
 
           <Button title="Edit expense" icon="pencil-outline" kind="ghost" onPress={() => setMode('edit')} style={{ marginTop: 24 }} />
+          <Button title="Delete expense" kind="danger" onPress={() => setConfirmingDelete(true)} style={{ marginTop: 10 }} />
         </ScrollView>
+        <ConfirmDialog
+          visible={confirmingDelete}
+          title="Delete this expense?"
+          message="It will be removed from your history."
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirmingDelete(false)}
+        />
       </Screen>
     );
   }
@@ -368,9 +376,16 @@ export default function ExpenseForm() {
           </View>
 
           <Button title={editId ? 'Save changes' : 'Add expense'} onPress={onSave} disabled={!valid} style={{ marginTop: 22 }} />
-          {editId ? <Button title="Delete expense" kind="danger" onPress={onDelete} style={{ marginTop: 10 }} /> : null}
+          {editId ? <Button title="Delete expense" kind="danger" onPress={() => setConfirmingDelete(true)} style={{ marginTop: 10 }} /> : null}
         </ScrollView>
       </KeyboardAvoidingView>
+      <ConfirmDialog
+        visible={confirmingDelete}
+        title="Delete this expense?"
+        message="It will be removed from your history."
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </Screen>
   );
 }

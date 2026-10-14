@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { METHODS, addRecurring, deleteRecurring, listCategories, listRecurring, type Category, type Recurring } from '@/db';
 import { useTheme } from '@/theme';
-import { Button, Chip, Divider, Empty, Field, Header, Money, Row, Screen, Section, T } from '@/ui';
+import { Button, Chip, ConfirmDialog, Divider, Empty, Field, Header, Money, Row, Screen, Section, T } from '@/ui';
 
 export default function RecurringScreen() {
   const { c } = useTheme();
@@ -16,6 +16,7 @@ export default function RecurringScreen() {
   const [day, setDay] = useState('1');
   const [catId, setCatId] = useState<number | null>(null);
   const [method, setMethod] = useState<string>('UPI');
+  const [toRemove, setToRemove] = useState<Recurring | null>(null);
 
   const load = useCallback(async () => setList(await listRecurring()), []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -31,6 +32,13 @@ export default function RecurringScreen() {
     if (!valid || catId === null) return;
     await addRecurring({ amount: amt, category_id: catId, note: note.trim(), method, day: d });
     setAmount(''); setNote(''); setDay('1');
+    load();
+  }
+
+  async function confirmRemove() {
+    if (!toRemove) return;
+    await deleteRecurring(toRemove.id);
+    setToRemove(null);
     load();
   }
 
@@ -55,16 +63,7 @@ export default function RecurringScreen() {
                   <T size={12.5} sub style={{ marginTop: 2 }}>{r.cat_name} · day {r.day} · {r.method}</T>
                 </View>
                 <Money value={r.amount} size={15} weight="600" style={{ marginRight: 14 }} />
-                <Pressable
-                  hitSlop={12}
-                  accessibilityLabel="Remove"
-                  onPress={() =>
-                    Alert.alert('Stop repeating this?', 'Entries already added stay in your history.', [
-                      { text: 'Keep', style: 'cancel' },
-                      { text: 'Stop', style: 'destructive', onPress: async () => { await deleteRecurring(r.id); load(); } },
-                    ])
-                  }
-                >
+                <Pressable hitSlop={12} accessibilityLabel="Remove" onPress={() => setToRemove(r)}>
                   <Ionicons name="trash-outline" size={19} color={c.faint} />
                 </Pressable>
               </Row>
@@ -89,6 +88,14 @@ export default function RecurringScreen() {
 
         <Button title="Add recurring" onPress={add} disabled={!valid} style={{ marginTop: 18 }} />
       </ScrollView>
+      <ConfirmDialog
+        visible={toRemove !== null}
+        title="Stop repeating this?"
+        message="Entries already added stay in your history."
+        confirmLabel="Stop"
+        onConfirm={confirmRemove}
+        onCancel={() => setToRemove(null)}
+      />
     </Screen>
   );
 }
