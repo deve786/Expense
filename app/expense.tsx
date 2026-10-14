@@ -29,7 +29,6 @@ const CATEGORY_KEYWORDS: [string, string[]][] = [
   ['Rent', ['rent']],
   ['Health', ['doctor', 'medicine', 'pharmacy', 'hospital', 'clinic', 'medical']],
   ['Entertainment', ['movie', 'netflix', 'spotify', 'cinema', 'concert', 'game']],
-  ['Personal Care', ['barber', 'barbershop', 'salon', 'haircut', 'spa', 'grooming', 'parlour', 'parlor']],
 ];
 
 function guessCategoryName(title: string): string | null {
@@ -61,12 +60,23 @@ export default function ExpenseForm() {
   const [customCat, setCustomCat] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [aiGuessing, setAiGuessing] = useState(false);
+  const [saving, setSaving] = useState(false);
   // Stops auto-categorising from title once the user has picked one themselves.
   const catAutoPick = useRef(true);
   const aiDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The in-flight AI categorisation call, if any — Save awaits this so a
+  // quick type-then-save doesn't race past it and miss the result.
+  const aiPending = useRef<Promise<void> | null>(null);
   // Bumped on every keystroke so a slow AI reply for an earlier title can't
   // land after the user has kept typing (or picked a category by hand).
   const aiSeq = useRef(0);
+  // Mirrors of state that Save needs to read *after* awaiting aiPending —
+  // by then the closure's own catId/cats consts are stale, since React
+  // state doesn't update mid-await within the same function call.
+  const catIdRef = useRef(catId);
+  const catsRef = useRef(cats);
+  useEffect(() => { catIdRef.current = catId; }, [catId]);
+  useEffect(() => { catsRef.current = cats; }, [cats]);
 
   useEffect(() => {
     (async () => {
@@ -100,46 +110,54 @@ export default function ExpenseForm() {
     };
   }, []);
 
+  async function runAiGuess(t: string, seq: number) {
+    setAiGuessing(true);
+    try {
+      const name = await guessCategoryWithAI(t, catsRef.current.map((k) => k.name));
+      if (seq !== aiSeq.current || !catAutoPick.current || !name) return;
+      if (name.toLowerCase() === 'other') return;
+
+      const existing = catsRef.current.find((k) => k.name.toLowerCase() === name.toLowerCase());
+      if (existing) {
+        setCatId(existing.id);
+        return;
+      }
+
+      // The AI suggested a category that doesn't exist yet — create it, so
+      // this and future titles like it land somewhere specific instead of
+      // defaulting to Other.
+      const newId = await findOrCreateCategory(name);
+      if (seq !== aiSeq.current || !catAutoPick.current) return;
+      setCats(await listCategories());
+      setCatId(newId);
+    } finally {
+      if (seq === aiSeq.current) setAiGuessing(false);
+    }
+  }
+
   function onChangeNote(t: string) {
     setNote(t);
     aiSeq.current += 1;
     if (aiDebounce.current) clearTimeout(aiDebounce.current);
+    aiDebounce.current = null;
     setAiGuessing(false);
     if (!catAutoPick.current) return;
 
     const guess = guessCategoryName(t);
     if (!guess) return;
     const match = cats.find((k) => k.name === guess);
-    if (match) setCatId(match.id);
+    if (match) {
+      setCatId(match.id);
+      return;
+    }
 
-    // The keyword list didn't recognise this one — ask the AI once typing
-    // pauses, rather than on every keystroke.
-    if (guess !== 'Other') return;
+    // Either the keyword list said "Other", or it named a category that
+    // doesn't actually exist (e.g. a default the user removed) — ask the AI
+    // once typing pauses, rather than on every keystroke.
     const seq = aiSeq.current;
     aiDebounce.current = setTimeout(() => {
-      setAiGuessing(true);
-      guessCategoryWithAI(t, cats.map((k) => k.name))
-        .then(async (name) => {
-          if (seq !== aiSeq.current || !catAutoPick.current || !name) return;
-          if (name.toLowerCase() === 'other') return;
-
-          const existing = cats.find((k) => k.name.toLowerCase() === name.toLowerCase());
-          if (existing) {
-            setCatId(existing.id);
-            return;
-          }
-
-          // The AI suggested a category that doesn't exist yet — create it,
-          // so this and future titles like it land somewhere specific
-          // instead of defaulting to Other.
-          const newId = await findOrCreateCategory(name);
-          if (seq !== aiSeq.current || !catAutoPick.current) return;
-          setCats(await listCategories());
-          setCatId(newId);
-        })
-        .finally(() => {
-          if (seq === aiSeq.current) setAiGuessing(false);
-        });
+      aiDebounce.current = null;
+      aiPending.current = runAiGuess(t, seq);
     }, 600);
   }
 
@@ -185,8 +203,25 @@ export default function ExpenseForm() {
 
   async function onSave() {
     if (!valid || catId === null) return;
-    const custom = isOther ? customCat.trim() : '';
-    const finalCatId = custom ? await findOrCreateCategory(custom) : catId;
+
+    // A category guess may still be debouncing or in flight for the current
+    // title — run it now instead of waiting out the timer, then wait for it,
+    // so a quick type-then-save doesn't miss the AI's result.
+    if (aiDebounce.current) {
+      clearTimeout(aiDebounce.current);
+      aiDebounce.current = null;
+      aiPending.current = runAiGuess(note, aiSeq.current);
+    }
+    if (aiPending.current) {
+      setSaving(true);
+      await aiPending.current;
+    }
+
+    const finalCategoryId = catIdRef.current;
+    if (finalCategoryId === null) { setSaving(false); return; }
+    const isOtherNow = catsRef.current.find((k) => k.id === finalCategoryId)?.name === 'Other';
+    const custom = isOtherNow ? customCat.trim() : '';
+    const finalCatId = custom ? await findOrCreateCategory(custom) : finalCategoryId;
     const newId = await saveExpense({
       id: editId, amount: round2(value), category_id: finalCatId, date,
       note: note.trim(), notes: notes.trim(), method,
@@ -433,7 +468,12 @@ export default function ExpenseForm() {
             ))}
           </View>
 
-          <Button title={editId ? 'Save changes' : 'Add expense'} onPress={onSave} disabled={!valid} style={{ marginTop: 22 }} />
+          <Button
+            title={saving ? 'Saving…' : editId ? 'Save changes' : 'Add expense'}
+            onPress={onSave}
+            disabled={!valid || saving}
+            style={{ marginTop: 22 }}
+          />
           {editId ? <Button title="Delete expense" kind="danger" onPress={() => setConfirmingDelete(true)} style={{ marginTop: 10 }} /> : null}
         </ScrollView>
       </KeyboardAvoidingView>

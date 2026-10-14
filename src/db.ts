@@ -61,7 +61,6 @@ const DEFAULT_CATEGORIES: Omit<Category, 'id'>[] = [
   { name: 'Rent', icon: 'home-outline', color: '#2E9465' },
   { name: 'Health', icon: 'medkit-outline', color: '#B0479B' },
   { name: 'Entertainment', icon: 'film-outline', color: '#7B8B1E' },
-  { name: 'Personal Care', icon: 'cut-outline', color: '#C45B7A' },
   { name: 'Other', icon: 'ellipsis-horizontal-circle-outline', color: '#0D8FAF' },
 ];
 
