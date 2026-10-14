@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { guessCategoryWithAI } from '@/ai/categorize';
+import { guessItemNamesWithAI } from '@/ai/items';
 import {
   METHODS, deleteExpense, findOrCreateCategory, findOrCreateTaggedUser, getExpense,
   listCategories, listExpenseItems, listTaggedUsers, saveExpense, saveExpenseItems,
@@ -66,10 +67,12 @@ export default function ExpenseForm() {
   const [aiSuggestedCat, setAiSuggestedCat] = useState(false); // true when customCat was filled by AI
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [aiGuessing, setAiGuessing] = useState(false);
+  const [aiItemsGuessing, setAiItemsGuessing] = useState(false);
   const [saving, setSaving] = useState(false);
   // Stops auto-categorising from title once the user has picked one themselves.
   const catAutoPick = useRef(true);
   const aiDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiItemsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The in-flight AI categorisation call, if any — Save awaits this so a
   // quick type-then-save doesn't race past it and miss the result.
   const aiPending = useRef<Promise<void> | null>(null);
@@ -81,8 +84,10 @@ export default function ExpenseForm() {
   // state doesn't update mid-await within the same function call.
   const catIdRef = useRef(catId);
   const catsRef = useRef(cats);
+  const itemsRef = useRef(items);
   useEffect(() => { catIdRef.current = catId; }, [catId]);
   useEffect(() => { catsRef.current = cats; }, [cats]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
 
   useEffect(() => {
     (async () => {
@@ -118,8 +123,41 @@ export default function ExpenseForm() {
   useEffect(() => {
     return () => {
       if (aiDebounce.current) clearTimeout(aiDebounce.current);
+      if (aiItemsDebounce.current) clearTimeout(aiItemsDebounce.current);
     };
   }, []);
+
+  async function runAiItemNaming(titleText: string, currentItems: DraftItem[]) {
+    if (!titleText.trim() && currentItems.every((it) => !it.name.trim())) return;
+    setAiItemsGuessing(true);
+    try {
+      const selectedCat = catsRef.current.find((k) => k.id === catIdRef.current)?.name;
+      const names = await guessItemNamesWithAI({
+        title: titleText,
+        category: selectedCat,
+        itemCount: currentItems.length,
+        existingNames: currentItems.map((it) => it.name),
+      });
+      if (names && names.length > 0) {
+        // If user started split items with 1 empty row and AI detected multiple items in title,
+        // expand the items list to match
+        if (currentItems.length === 1 && !currentItems[0].name.trim() && names.length > 1) {
+          const firstAmount = currentItems[0].amount;
+          setItems(names.map((name, i) => ({ name, qty: '1', amount: i === 0 ? firstAmount : '' })));
+        } else {
+          // If user already filled any name then replace that
+          setItems((prev) =>
+            prev.map((it, idx) => {
+              const aiName = names[idx];
+              return aiName ? { ...it, name: aiName } : it;
+            })
+          );
+        }
+      }
+    } finally {
+      setAiItemsGuessing(false);
+    }
+  }
 
   function fallBackToOther(seq: number) {
     if (seq !== aiSeq.current || !catAutoPick.current) return;
@@ -168,6 +206,16 @@ export default function ExpenseForm() {
     // Clear any previous AI-suggested category name when the title changes,
     // so a stale suggestion from an earlier title doesn't linger.
     if (aiSuggestedCat) { setCustomCat(''); setAiSuggestedCat(false); }
+
+    // If split items are active and title is typed/changed, debounce AI item naming:
+    if (itemsRef.current.length > 0 && t.trim()) {
+      if (aiItemsDebounce.current) clearTimeout(aiItemsDebounce.current);
+      aiItemsDebounce.current = setTimeout(() => {
+        aiItemsDebounce.current = null;
+        runAiItemNaming(t, itemsRef.current);
+      }, 700);
+    }
+
     if (!catAutoPick.current) return;
 
     const guess = guessCategoryName(t);
@@ -224,7 +272,11 @@ export default function ExpenseForm() {
     // "Add item" grows the list from here, so Save isn't blocked by a second,
     // still-empty row the user never asked for.
     const seed = !isNaN(manualValue) && manualValue > 0 ? amount : '';
-    setItems([{ name: '', qty: '1', amount: seed }]);
+    const initialItems = [{ name: '', qty: '1', amount: seed }];
+    setItems(initialItems);
+    if (note.trim()) {
+      runAiItemNaming(note, initialItems);
+    }
   }
   function clearItems() {
     if (itemsTotal > 0) setAmount(String(itemsTotal));
@@ -402,9 +454,29 @@ export default function ExpenseForm() {
 
           {hasItems ? (
             <View style={{ marginBottom: 20 }}>
-              <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
-                <T size={13} sub>{items.length} item{items.length === 1 ? '' : 's'}</T>
-                <T size={13} sub onPress={clearItems}>Clear</T>
+              <Row style={{ justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
+                <Row style={{ gap: 8, alignItems: 'center' }}>
+                  <T size={13} sub>{items.length} item{items.length === 1 ? '' : 's'}</T>
+                  {aiItemsGuessing && (
+                    <Row style={{ gap: 5, alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color={c.sub} />
+                      <T size={12} sub>Naming with AI…</T>
+                    </Row>
+                  )}
+                </Row>
+                <Row style={{ gap: 14, alignItems: 'center' }}>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => runAiItemNaming(note, items)}
+                    disabled={aiItemsGuessing}
+                    accessibilityLabel="Auto-name items with AI"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    <Ionicons name="sparkles-outline" size={13} color={c.accent} />
+                    <T size={13} style={{ color: c.accent, fontWeight: '600' }}>AI name items</T>
+                  </Pressable>
+                  <T size={13} sub onPress={clearItems}>Clear</T>
+                </Row>
               </Row>
               {items.map((it, i) => (
                 <View key={i} style={{ marginBottom: 10 }}>

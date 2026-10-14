@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 /** Newest first. Add a new entry here with every release that changes user-visible behaviour. */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.12',
+    date: '2026-10-14',
+    highlights: [
+      'AI item naming for split items: automatically generates and names items from your expense title',
+      'Replaces existing or placeholder item names with clean AI names',
+      'One-tap "AI name items" button in the split items section',
+    ],
+  },
+  {
     version: '1.0.11',
     date: '2026-10-14',
     highlights: [
