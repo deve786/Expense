@@ -115,12 +115,17 @@ export function Chip({ label, active, onPress, color, icon }: {
   );
 }
 
-export function Field(props: TextInputProps & { label?: string; containerStyle?: StyleProp<ViewStyle> }) {
+export function Field(props: TextInputProps & { label?: string; right?: React.ReactNode; containerStyle?: StyleProp<ViewStyle> }) {
   const { c } = useTheme();
-  const { label, style, containerStyle, ...rest } = props;
+  const { label, right, style, containerStyle, ...rest } = props;
   return (
     <View style={[{ marginBottom: 14 }, containerStyle]}>
-      {label ? <T size={13} sub style={{ marginBottom: 7 }}>{label}</T> : null}
+      {label || right ? (
+        <Row style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+          {label ? <T size={13} sub>{label}</T> : <View />}
+          {right}
+        </Row>
+      ) : null}
       <TextInput
         placeholderTextColor={c.faint}
         {...rest}
