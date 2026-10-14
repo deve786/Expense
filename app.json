@@ -11,7 +11,7 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/e8e8dedb-51a8-46e9-94ec-1aef3e416242",
+      "url": "https://u.expo.dev/dd34ff19-2227-439d-9f62-fde5c55c50a9",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
@@ -32,13 +32,15 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-updates"
+      "expo-updates",
+      "expo-font"
     ],
     "extra": {
       "chatProxyUrl": "",
       "chatAppToken": "",
+      "router": {},
       "eas": {
-        "projectId": "e8e8dedb-51a8-46e9-94ec-1aef3e416242"
+        "projectId": "dd34ff19-2227-439d-9f62-fde5c55c50a9"
       }
     },
     "owner": "ijasahmed"
